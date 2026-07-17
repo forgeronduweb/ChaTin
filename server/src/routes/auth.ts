@@ -13,8 +13,8 @@ authRouter.post('/auth/google', async (req, res) => {
 
   try {
     const profile = await verifyGoogleIdToken(idToken);
-    const user = upsertGoogleUser(profile);
-    const token = createSession(user.id);
+    const user = await upsertGoogleUser(profile);
+    const token = await createSession(user.id);
     res.json({
       token,
       user: { id: user.id, name: user.name, email: user.email, avatarUrl: user.avatarUrl },

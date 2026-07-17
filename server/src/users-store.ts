@@ -1,36 +1,42 @@
+import { eq } from 'drizzle-orm';
+import { db } from './db/client.js';
+import { sessions, users } from './db/schema.js';
+
 export type User = {
   id: string;
   googleId: string;
   name: string;
   email: string;
-  avatarUrl?: string;
+  avatarUrl: string | null;
 };
 
-const usersByGoogleId = new Map<string, User>();
-const sessions = new Map<string, string>();
-
-export function upsertGoogleUser(profile: {
+export async function upsertGoogleUser(profile: {
   googleId: string;
   name: string;
   email: string;
   avatarUrl?: string;
-}): User {
-  const existing = usersByGoogleId.get(profile.googleId);
-  const user: User = existing
-    ? { ...existing, ...profile }
-    : { id: crypto.randomUUID(), ...profile };
-  usersByGoogleId.set(profile.googleId, user);
+}): Promise<User> {
+  const [user] = await db
+    .insert(users)
+    .values(profile)
+    .onConflictDoUpdate({
+      target: users.googleId,
+      set: { name: profile.name, email: profile.email, avatarUrl: profile.avatarUrl },
+    })
+    .returning();
   return user;
 }
 
-export function createSession(userId: string): string {
-  const token = crypto.randomUUID();
-  sessions.set(token, userId);
-  return token;
+export async function createSession(userId: string): Promise<string> {
+  const [session] = await db.insert(sessions).values({ userId }).returning();
+  return session.token;
 }
 
-export function getUserByToken(token: string): User | undefined {
-  const userId = sessions.get(token);
-  if (!userId) return undefined;
-  return [...usersByGoogleId.values()].find((user) => user.id === userId);
+export async function getUserByToken(token: string): Promise<User | undefined> {
+  const [row] = await db
+    .select({ user: users })
+    .from(sessions)
+    .innerJoin(users, eq(sessions.userId, users.id))
+    .where(eq(sessions.token, token));
+  return row?.user;
 }
