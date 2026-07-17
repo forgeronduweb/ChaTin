@@ -1,0 +1,402 @@
+:root {
+  --cream: #F7F3E6;
+  --paper: #EFEAD6;
+  --ink: #161616;
+  --ink-muted: #3A382F;
+  --text-muted: #8C876F;
+  --yellow: #F6C445;
+  --pink: #F3A7C7;
+  --green: #3FBE7A;
+  --white: #FFFFFF;
+  --chat-bg: #151515;
+  --radius-lg: 32px;
+  --radius-md: 24px;
+  --radius-sm: 16px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: 'Baloo 2', system-ui, sans-serif;
+  background: var(--cream);
+  color: var(--ink);
+  overflow-x: hidden;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+.container {
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* Topbar */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(247, 243, 230, 0.85);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(22, 22, 22, 0.06);
+}
+
+.topbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.topbar-logo {
+  height: 32px;
+  width: auto;
+}
+
+.topbar-nav {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.topbar-nav a {
+  color: var(--ink-muted);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.topbar-nav a.nav-cta {
+  background: var(--ink);
+  color: var(--white);
+  padding: 8px 18px;
+  border-radius: 999px;
+}
+
+/* Hero */
+.hero {
+  position: relative;
+  padding: 64px 0 96px;
+}
+
+.hero-grid {
+  position: relative;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.badge {
+  display: inline-block;
+  background: var(--ink);
+  color: var(--white);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 16px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+
+.hero h1 {
+  font-size: clamp(32px, 5.5vw, 52px);
+  line-height: 1.1;
+  font-weight: 800;
+  margin: 0;
+  max-width: 14ch;
+}
+
+.hero-subtitle {
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--ink-muted);
+  max-width: 46ch;
+  margin: 0;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.hero-meta {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 4px 0 0;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 15px;
+  padding: 14px 24px;
+  border-radius: 999px;
+  text-decoration: none;
+  border: 2px solid transparent;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+  cursor: pointer;
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn-primary {
+  background: var(--yellow);
+  color: var(--ink);
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.btn-ghost:hover {
+  background: var(--ink);
+  color: var(--white);
+}
+
+.btn-large {
+  padding: 18px 32px;
+  font-size: 17px;
+}
+
+/* Floating stickers */
+.floaty {
+  position: absolute;
+  width: 96px;
+  z-index: 1;
+  filter: drop-shadow(0 8px 16px rgba(22, 22, 22, 0.08));
+  animation: bob 5s ease-in-out infinite;
+}
+
+.floaty-cat {
+  top: -12px;
+  left: -8px;
+  width: 84px;
+  animation-delay: 0s;
+}
+
+.floaty-clapperboard {
+  top: 40px;
+  right: -20px;
+  width: 88px;
+  animation-delay: 0.6s;
+}
+
+.floaty-vinyl {
+  bottom: 40px;
+  left: -36px;
+  width: 76px;
+  animation-delay: 1.2s;
+}
+
+.floaty-mountain {
+  bottom: -30px;
+  right: 10px;
+  width: 110px;
+  animation-delay: 1.8s;
+}
+
+.floaty-books {
+  top: 50%;
+  left: -60px;
+  width: 64px;
+  animation-delay: 2.4s;
+  display: none;
+}
+
+@keyframes bob {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-10px) rotate(2deg); }
+}
+
+@media (min-width: 720px) {
+  .floaty-books {
+    display: block;
+  }
+}
+
+/* Features */
+.features {
+  padding: 48px 0 96px;
+}
+
+.section-title {
+  text-align: center;
+  font-size: clamp(26px, 4vw, 36px);
+  font-weight: 800;
+  margin: 0 0 40px;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+}
+
+.feature-card {
+  background: var(--white);
+  border-radius: var(--radius-md);
+  padding: 28px;
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.feature-card.in-view {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.feature-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  margin-bottom: 16px;
+}
+
+.feature-card h3 {
+  font-size: 18px;
+  margin: 0 0 8px;
+}
+
+.feature-card p {
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--ink-muted);
+  margin: 0;
+}
+
+/* Download */
+.download {
+  background: var(--chat-bg);
+  color: var(--white);
+  border-radius: var(--radius-lg);
+  margin: 0 16px 64px;
+  padding: 72px 24px;
+}
+
+@media (min-width: 768px) {
+  .download {
+    margin: 0 auto 96px;
+    max-width: 1048px;
+  }
+}
+
+.download-inner {
+  max-width: 520px;
+  margin: 0 auto;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.download-flower {
+  width: 56px;
+  height: 56px;
+  margin-bottom: 8px;
+}
+
+.download h2 {
+  font-size: clamp(26px, 4vw, 34px);
+  margin: 0;
+}
+
+.download p {
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0;
+  font-size: 15px;
+}
+
+.install-help {
+  margin-top: 16px;
+  text-align: left;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-sm);
+  padding: 16px 20px;
+}
+
+.install-help summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--white);
+}
+
+.install-help ol {
+  margin: 12px 0 0;
+  padding-left: 20px;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+/* Footer */
+.footer {
+  padding: 32px 24px 48px;
+}
+
+.footer-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.footer-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+}
+
+.footer-inner p {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin: 0;
+}
+
+.footer-inner a {
+  color: var(--ink-muted);
+  font-size: 14px;
+  font-weight: 600;
+}
