@@ -12,8 +12,9 @@ export const DASHBOARD_HTML = `<!doctype html>
   :root {
     --cream: #F7F3E6; --paper: #EFEAD6; --ink: #161616; --ink-muted: #3A382F;
     --text-muted: #8C876F; --yellow: #F6C445; --pink: #F3A7C7; --green: #3FBE7A;
-    --white: #FFFFFF; --red: #E0555A;
-    --radius-lg: 28px; --radius-md: 20px; --radius-sm: 12px;
+    --blue: #8EC5FC; --purple: #C9A7F3; --white: #FFFFFF; --red: #E0555A;
+    --border: #E6E1D2;
+    --radius-lg: 16px; --radius-md: 12px; --radius-sm: 10px;
   }
   * { box-sizing: border-box; }
   body {
@@ -21,6 +22,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     background: var(--cream); color: var(--ink); display: flex; min-height: 100vh;
   }
   a { color: inherit; }
+  svg { display: block; }
 
   /* Sidebar */
   .sidebar {
@@ -31,84 +33,92 @@ export const DASHBOARD_HTML = `<!doctype html>
   .sidebar-brand img { width: 32px; height: 32px; border-radius: 9px; }
   .sidebar-brand span { font-weight: 800; font-size: 16px; }
   .nav-item {
-    display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 999px;
-    font-weight: 600; font-size: 14.5px; cursor: pointer; color: rgba(255,255,255,0.65);
-    margin-bottom: 4px; border: none; background: none; width: 100%; text-align: left; font-family: inherit;
+    display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: var(--radius-sm);
+    font-weight: 600; font-size: 14px; cursor: pointer; color: rgba(255,255,255,0.55);
+    margin-bottom: 2px; border: none; background: none; width: 100%; text-align: left; font-family: inherit;
+    transition: background .15s, color .15s;
   }
-  .nav-item .emoji { font-size: 16px; }
-  .nav-item:hover { color: var(--white); }
-  .nav-item.active { background: rgba(255,255,255,0.1); color: var(--white); }
+  .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; opacity: 0.75; transition: opacity .15s, color .15s; }
+  .nav-item:hover { color: var(--white); background: rgba(255,255,255,0.06); }
+  .nav-item.active { background: rgba(255,255,255,0.09); color: var(--white); }
+  .nav-item.active svg { opacity: 1; color: var(--accent, var(--yellow)); }
 
   /* Main */
   .main { flex: 1; min-width: 0; padding: 32px 36px 80px; }
   .view { display: none; }
   .view.active { display: block; }
   .view-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
-  .view-title { font-size: 24px; font-weight: 800; margin: 0; }
+  .view-title { font-size: 23px; font-weight: 800; margin: 0; }
 
   .search-input, .form-input, .form-select {
-    font-family: inherit; border: 2px solid var(--paper); background: var(--white);
-    border-radius: 999px; padding: 9px 18px; font-size: 14px; color: var(--ink); outline: none;
+    font-family: inherit; border: 1px solid var(--border); background: var(--white);
+    border-radius: var(--radius-sm); padding: 9px 16px; font-size: 14px; color: var(--ink); outline: none;
   }
-  .search-input:focus, .form-input:focus, .form-select:focus { border-color: var(--yellow); }
-  .form-input, .form-select { border-radius: var(--radius-sm); width: 100%; }
+  .search-input:focus, .form-input:focus, .form-select:focus { border-color: var(--ink); }
+  .form-input, .form-select { width: 100%; }
 
   .btn {
-    font-family: inherit; font-weight: 700; font-size: 14px; border-radius: 999px; border: none;
-    padding: 10px 20px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+    font-family: inherit; font-weight: 700; font-size: 13.5px; border-radius: var(--radius-sm); border: 1px solid transparent;
+    padding: 9px 16px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background .15s, border-color .15s, color .15s;
   }
   .btn-primary { background: var(--yellow); color: var(--ink); }
-  .btn-outline { background: none; border: 2px solid var(--ink); color: var(--ink); }
-  .btn-danger { background: none; border: 2px solid var(--red); color: var(--red); }
-  .btn-danger:hover { background: var(--red); color: var(--white); }
-  .btn-sm { padding: 5px 14px; font-size: 12.5px; }
+  .btn-primary:hover { background: #ecb62a; }
+  .btn-outline { background: var(--white); border-color: var(--border); color: var(--ink); }
+  .btn-outline:hover { border-color: var(--ink); }
+  .btn-danger { background: none; border-color: var(--border); color: var(--red); }
+  .btn-danger:hover { background: var(--red); border-color: var(--red); color: var(--white); }
+  .btn-sm { padding: 5px 12px; font-size: 12px; }
   .btn:disabled { opacity: 0.5; cursor: default; }
 
   /* Stats */
-  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 28px; }
-  .stat-card { background: var(--white); border-radius: var(--radius-md); padding: 20px; border-top: 4px solid var(--accent, var(--yellow)); }
-  .stat-card .value { font-size: 30px; font-weight: 800; line-height: 1.1; }
-  .stat-card .label { font-size: 12.5px; color: var(--text-muted); font-weight: 600; margin-top: 4px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .stat-card { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+  .stat-card-head { display: flex; align-items: center; justify-content: space-between; }
+  .stat-icon { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: var(--accent-bg); color: var(--accent); flex-shrink: 0; }
+  .stat-icon svg { width: 16px; height: 16px; }
+  .stat-card .value { font-size: 26px; font-weight: 800; line-height: 1.1; }
+  .stat-card .label { font-size: 12.5px; color: var(--text-muted); font-weight: 600; }
 
-  .card { background: var(--white); border-radius: var(--radius-lg); padding: 24px; margin-bottom: 24px; }
-  .card h3 { margin: 0 0 16px; font-size: 15px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-muted); }
+  .card { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 22px; margin-bottom: 24px; }
+  .card h3 { margin: 0 0 16px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); font-weight: 700; }
 
   .chart { display: flex; align-items: flex-end; gap: 10px; height: 140px; }
   .chart-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
-  .chart-bar { width: 100%; max-width: 36px; background: var(--yellow); border-radius: 8px 8px 4px 4px; min-height: 4px; }
+  .chart-bar { width: 100%; max-width: 32px; background: var(--yellow); border-radius: 5px 5px 2px 2px; min-height: 4px; }
   .chart-label { font-size: 11px; color: var(--text-muted); font-weight: 600; }
 
   /* Table */
-  .panel { background: var(--white); border-radius: var(--radius-lg); overflow: hidden; }
+  .panel { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  th, td { text-align: left; padding: 13px 20px; }
-  thead th { color: var(--text-muted); font-weight: 700; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; border-bottom: 2px solid var(--paper); white-space: nowrap; }
-  tbody tr:not(:last-child) td { border-bottom: 1px solid var(--paper); }
+  th, td { text-align: left; padding: 12px 20px; }
+  thead th { color: var(--text-muted); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; background: var(--cream); border-bottom: 1px solid var(--border); white-space: nowrap; }
+  tbody tr:not(:last-child) td { border-bottom: 1px solid var(--border); }
+  tbody tr:hover { background: rgba(22,22,22,0.015); }
   td { vertical-align: middle; }
   .user-cell { display: flex; align-items: center; gap: 10px; font-weight: 600; }
   .avatar {
-    width: 30px; height: 30px; border-radius: 50%; background: var(--pink);
+    width: 28px; height: 28px; border-radius: 50%; background: var(--pink);
     display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-    font-size: 11px; font-weight: 700; color: var(--ink); overflow: hidden;
+    font-size: 10.5px; font-weight: 700; color: var(--ink); overflow: hidden;
   }
   .avatar img { width: 100%; height: 100%; object-fit: cover; }
   .muted { color: var(--text-muted); }
   .actions-cell { display: flex; gap: 8px; white-space: nowrap; }
 
-  .badge { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 11.5px; font-weight: 700; }
+  .badge { display: inline-block; padding: 3px 11px; border-radius: 999px; font-size: 11px; font-weight: 700; }
   .badge-active { background: rgba(63,190,122,0.15); color: #1F8A50; }
   .badge-suspended { background: rgba(224,85,90,0.12); color: var(--red); }
 
   .empty, .loading { padding: 48px 24px; text-align: center; color: var(--text-muted); font-weight: 600; }
 
   /* Prompts grid */
-  .prompts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
-  .prompt-card { border-radius: var(--radius-md); padding: 20px; display: flex; flex-direction: column; gap: 8px; position: relative; }
-  .prompt-emoji { font-size: 28px; }
-  .prompt-title { font-weight: 700; font-size: 15.5px; line-height: 1.3; }
+  .prompts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+  .prompt-card { border-radius: var(--radius-md); padding: 18px; display: flex; flex-direction: column; gap: 8px; position: relative; }
+  .prompt-emoji { font-size: 26px; }
+  .prompt-title { font-weight: 700; font-size: 15px; line-height: 1.3; }
   .prompt-meta { font-size: 12px; color: rgba(22,22,22,0.6); }
   .prompt-actions { display: flex; gap: 8px; margin-top: 8px; }
-  .prompt-featured { position: absolute; top: 14px; right: 14px; font-size: 11px; font-weight: 700; background: var(--ink); color: var(--white); padding: 3px 10px; border-radius: 999px; }
+  .prompt-featured { position: absolute; top: 14px; right: 14px; font-size: 10.5px; font-weight: 700; background: var(--ink); color: var(--white); padding: 3px 10px; border-radius: 999px; }
 
   /* Modal */
   .modal-overlay {
@@ -117,15 +127,17 @@ export const DASHBOARD_HTML = `<!doctype html>
   }
   .modal-overlay.open { display: flex; }
   .modal {
-    background: var(--cream); border-radius: var(--radius-lg); padding: 28px;
+    background: var(--cream); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 26px;
     width: 100%; max-width: 480px; max-height: 85vh; overflow-y: auto;
   }
-  .modal h2 { margin: 0 0 20px; font-size: 19px; }
-  .modal-close { float: right; background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-muted); font-family: inherit; }
+  .modal h2 { margin: 0 0 20px; font-size: 18px; }
+  .modal-close { float: right; background: none; border: none; padding: 4px; cursor: pointer; color: var(--text-muted); font-family: inherit; border-radius: 6px; }
+  .modal-close:hover { color: var(--ink); background: rgba(22,22,22,0.06); }
+  .modal-close svg { width: 16px; height: 16px; }
   .form-row { margin-bottom: 14px; }
-  .form-row label { display: block; font-size: 12.5px; font-weight: 700; color: var(--ink-muted); margin-bottom: 6px; }
+  .form-row label { display: block; font-size: 12px; font-weight: 700; color: var(--ink-muted); margin-bottom: 6px; }
   .color-swatches { display: flex; gap: 8px; margin-top: 6px; }
-  .swatch { width: 28px; height: 28px; border-radius: 50%; cursor: pointer; border: 3px solid transparent; }
+  .swatch { width: 26px; height: 26px; border-radius: 50%; cursor: pointer; border: 3px solid transparent; }
   .swatch.selected { border-color: var(--ink); }
   .checkbox-row { display: flex; align-items: center; gap: 8px; }
   .checkbox-row label { margin: 0; }
@@ -133,7 +145,7 @@ export const DASHBOARD_HTML = `<!doctype html>
 
   .msg-list { display: flex; flex-direction: column; gap: 10px; max-height: 50vh; overflow-y: auto; }
   .msg-bubble { padding: 10px 14px; border-radius: 14px; font-size: 13.5px; line-height: 1.4; }
-  .msg-me { background: var(--white); align-self: flex-end; max-width: 85%; }
+  .msg-me { background: var(--white); align-self: flex-end; max-width: 85%; border: 1px solid var(--border); }
   .msg-bot { background: var(--paper); max-width: 85%; }
 </style>
 </head>
@@ -143,10 +155,22 @@ export const DASHBOARD_HTML = `<!doctype html>
       <img src="https://forgeronduweb.github.io/ChaTin/images/icon.png" alt="ChaTin" />
       <span>ChaTin</span>
     </div>
-    <button class="nav-item active" data-view="home"><span class="emoji">🏠</span> Accueil</button>
-    <button class="nav-item" data-view="users"><span class="emoji">👤</span> Utilisateurs</button>
-    <button class="nav-item" data-view="conversations"><span class="emoji">💬</span> Conversations</button>
-    <button class="nav-item" data-view="prompts"><span class="emoji">🧠</span> Prompts</button>
+    <button class="nav-item active" data-view="home" style="--accent:#F6C445">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>
+      Accueil
+    </button>
+    <button class="nav-item" data-view="users" style="--accent:#F3A7C7">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Utilisateurs
+    </button>
+    <button class="nav-item" data-view="conversations" style="--accent:#3FBE7A">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Conversations
+    </button>
+    <button class="nav-item" data-view="prompts" style="--accent:#C9A7F3">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M3 12h3M18 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/><circle cx="12" cy="12" r="3"/></svg>
+      Prompts
+    </button>
   </aside>
 
   <main class="main">
@@ -154,11 +178,41 @@ export const DASHBOARD_HTML = `<!doctype html>
     <section class="view active" id="view-home">
       <div class="view-header"><h1 class="view-title">Accueil</h1></div>
       <div class="stats" id="stats">
-        <div class="stat-card" style="--accent:#F6C445"><div class="value">—</div><div class="label">Utilisateurs</div></div>
-        <div class="stat-card" style="--accent:#3FBE7A"><div class="value">—</div><div class="label">Nouveaux aujourd'hui</div></div>
-        <div class="stat-card" style="--accent:#F3A7C7"><div class="value">—</div><div class="label">Actifs aujourd'hui</div></div>
-        <div class="stat-card" style="--accent:#F6C445"><div class="value">—</div><div class="label">Conversations</div></div>
-        <div class="stat-card" style="--accent:#3FBE7A"><div class="value">—</div><div class="label">Messages aujourd'hui</div></div>
+        <div class="stat-card" style="--accent:#C9822B;--accent-bg:rgba(246,196,69,.16)">
+          <div class="stat-card-head">
+            <span class="label">Utilisateurs</span>
+            <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+          </div>
+          <div class="value">—</div>
+        </div>
+        <div class="stat-card" style="--accent:#238C56;--accent-bg:rgba(63,190,122,.16)">
+          <div class="stat-card-head">
+            <span class="label">Nouveaux aujourd'hui</span>
+            <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg></span>
+          </div>
+          <div class="value">—</div>
+        </div>
+        <div class="stat-card" style="--accent:#C1568A;--accent-bg:rgba(243,167,199,.2)">
+          <div class="stat-card-head">
+            <span class="label">Actifs aujourd'hui</span>
+            <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
+          </div>
+          <div class="value">—</div>
+        </div>
+        <div class="stat-card" style="--accent:#3E7FBF;--accent-bg:rgba(142,197,252,.22)">
+          <div class="stat-card-head">
+            <span class="label">Conversations</span>
+            <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+          </div>
+          <div class="value">—</div>
+        </div>
+        <div class="stat-card" style="--accent:#7C4FBF;--accent-bg:rgba(201,167,243,.22)">
+          <div class="stat-card-head">
+            <span class="label">Messages aujourd'hui</span>
+            <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>
+          </div>
+          <div class="value">—</div>
+        </div>
       </div>
       <div class="card">
         <h3>Activité — messages envoyés (7 derniers jours)</h3>
@@ -206,7 +260,10 @@ export const DASHBOARD_HTML = `<!doctype html>
     <section class="view" id="view-prompts">
       <div class="view-header">
         <h1 class="view-title">Prompts</h1>
-        <button class="btn btn-primary" id="add-prompt-btn">+ Ajouter un prompt</button>
+        <button class="btn btn-primary" id="add-prompt-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M12 5v14M5 12h14"/></svg>
+          Ajouter un prompt
+        </button>
       </div>
       <div class="prompts-grid" id="prompts-grid"></div>
       <div class="loading" id="prompts-loading">Chargement…</div>
@@ -217,7 +274,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   <!-- Conversation detail modal -->
   <div class="modal-overlay" id="conv-modal">
     <div class="modal">
-      <button class="modal-close" data-close="conv-modal">✕</button>
+      <button class="modal-close" data-close="conv-modal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
       <h2 id="conv-modal-title">Conversation</h2>
       <div class="msg-list" id="conv-modal-messages"></div>
     </div>
@@ -226,7 +283,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   <!-- Prompt form modal -->
   <div class="modal-overlay" id="prompt-modal">
     <div class="modal">
-      <button class="modal-close" data-close="prompt-modal">✕</button>
+      <button class="modal-close" data-close="prompt-modal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
       <h2 id="prompt-modal-title">Ajouter un prompt</h2>
       <form id="prompt-form">
         <input type="hidden" id="prompt-id" />
