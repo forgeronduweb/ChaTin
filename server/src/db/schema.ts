@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -6,6 +6,7 @@ export const users = pgTable('users', {
   name: text('name').notNull(),
   email: text('email').notNull(),
   avatarUrl: text('avatar_url'),
+  status: text('status', { enum: ['active', 'suspended'] }).notNull().default('active'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
@@ -31,5 +32,16 @@ export const messages = pgTable('messages', {
     .references(() => conversations.id, { onDelete: 'cascade' }),
   from: text('from', { enum: ['me', 'bot'] }).notNull(),
   text: text('text').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export const prompts = pgTable('prompts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  title: text('title').notNull(),
+  author: text('author').notNull().default(''),
+  category: text('category').notNull().default(''),
+  color: text('color').notNull().default('#F3A7C7'),
+  emoji: text('emoji'),
+  featured: boolean('featured').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });

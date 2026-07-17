@@ -9,6 +9,10 @@ export default defineConfig({
   schema: './src/db/schema.ts',
   out: './drizzle',
   dialect: 'postgresql',
+  // Supabase's built-in `auth`/`storage`/`realtime` schemas have CHECK
+  // constraints drizzle-kit's introspection can't parse and crashes on.
+  // Our own tables all live in `public`, so scope introspection to that.
+  schemaFilter: ['public'],
   dbCredentials: {
     url: process.env.DATABASE_URL,
   },

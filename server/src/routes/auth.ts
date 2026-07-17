@@ -14,6 +14,10 @@ authRouter.post('/auth/google', async (req, res) => {
   try {
     const profile = await verifyGoogleIdToken(idToken);
     const user = await upsertGoogleUser(profile);
+    if (user.status === 'suspended') {
+      res.status(403).json({ error: 'This account has been suspended' });
+      return;
+    }
     const token = await createSession(user.id);
     res.json({
       token,

@@ -8,6 +8,7 @@ export type User = {
   name: string;
   email: string;
   avatarUrl: string | null;
+  status: 'active' | 'suspended';
 };
 
 export async function upsertGoogleUser(profile: {
@@ -38,5 +39,6 @@ export async function getUserByToken(token: string): Promise<User | undefined> {
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
     .where(eq(sessions.token, token));
-  return row?.user;
+  if (!row || row.user.status === 'suspended') return undefined;
+  return row.user;
 }
