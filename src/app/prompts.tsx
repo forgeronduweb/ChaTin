@@ -5,10 +5,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GraphPaperBackground } from '@/components/graph-paper-background';
 import { Brand, Fonts, Spacing } from '@/constants/theme';
-import { POPULAR_PROMPTS } from '@/lib/content';
 import { t } from '@/lib/i18n';
+import { usePrompts } from '@/lib/prompts';
 
 export default function PromptsScreen() {
+  const { prompts } = usePrompts();
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom', 'left', 'right']}>
       <View style={styles.headerSection}>
@@ -30,8 +32,8 @@ export default function PromptsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
-        {POPULAR_PROMPTS.map((prompt) => (
-          <View key={prompt.key} style={[styles.card, { backgroundColor: prompt.color }]}>
+        {prompts.map((prompt) => (
+          <View key={prompt.id} style={[styles.card, { backgroundColor: prompt.color }]}>
             <Text style={styles.cardTitle}>{prompt.title}</Text>
             <Text style={styles.cardAuthor}>{t('homeGeneratedBy', { author: prompt.author })}</Text>
             <Pressable

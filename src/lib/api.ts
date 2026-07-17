@@ -25,6 +25,16 @@ export type Conversation = {
   messages: ChatMessage[];
 };
 
+export type Prompt = {
+  id: string;
+  title: string;
+  author: string;
+  category: string;
+  color: string;
+  emoji: string | null;
+  featured: boolean;
+};
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const session = await getSession();
   const response = await fetch(`${BASE_URL}${path}`, {
@@ -46,6 +56,10 @@ export function createConversation(title?: string, messages?: ChatMessage[]): Pr
     method: 'POST',
     body: JSON.stringify({ title, messages }),
   });
+}
+
+export function getPrompts(): Promise<Prompt[]> {
+  return request<Prompt[]>('/api/prompts');
 }
 
 export function sendMessage(

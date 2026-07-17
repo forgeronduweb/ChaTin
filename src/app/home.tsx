@@ -8,8 +8,8 @@ import { GraphPaperBackground } from '@/components/graph-paper-background';
 import { Brand, Fonts, Spacing } from '@/constants/theme';
 import { type AuthUser, getSession } from '@/lib/auth';
 import { listStoredConversations, type StoredConversation } from '@/lib/conversations-store';
-import { POPULAR_PROMPTS } from '@/lib/content';
 import { t } from '@/lib/i18n';
+import { usePrompts } from '@/lib/prompts';
 
 function initialsFor(name: string) {
   return name
@@ -33,6 +33,8 @@ function SeeAllLink({ onPress }: { onPress: () => void }) {
 export default function HomeScreen() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [historyPreview, setHistoryPreview] = useState<StoredConversation[]>([]);
+  const { prompts } = usePrompts();
+  const featuredPrompts = prompts.filter((prompt) => prompt.featured).slice(0, 2);
 
   useFocusEffect(
     useCallback(() => {
@@ -107,8 +109,8 @@ export default function HomeScreen() {
             <SeeAllLink onPress={() => router.push('/prompts')} />
           </View>
           <View style={styles.promptRow}>
-            {POPULAR_PROMPTS.map((prompt) => (
-              <View key={prompt.key} style={[styles.promptCard, { backgroundColor: prompt.color }]}>
+            {featuredPrompts.map((prompt) => (
+              <View key={prompt.id} style={[styles.promptCard, { backgroundColor: prompt.color }]}>
                 <View style={styles.promptCardBody}>
                   <Text style={styles.promptTitle} numberOfLines={3} ellipsizeMode="tail">
                     {prompt.title}
