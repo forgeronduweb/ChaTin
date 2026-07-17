@@ -1,6 +1,6 @@
 import { and, count, desc, eq, gte, ilike, max, sql } from 'drizzle-orm';
 import { db } from './db/client.js';
-import { conversations, messages, prompts, sessions, users } from './db/schema.js';
+import { appReleases, conversations, messages, prompts, sessions, users } from './db/schema.js';
 
 function startOfToday(): Date {
   const d = new Date();
@@ -51,30 +51,44 @@ export async function getStats() {
 export async function listUsers(search?: string) {
   const condition = search ? ilike(users.name, `%${search}%`) : undefined;
 
-  const rows = await db
-    .select({
-      id: users.id,
-      name: users.name,
-      email: users.email,
-      avatarUrl: users.avatarUrl,
-      status: users.status,
-      createdAt: users.createdAt,
-      lastLoginAt: max(sessions.createdAt),
-      conversationCount: sql<number>`count(distinct ${conversations.id})`,
-      messageCount: sql<number>`count(distinct ${messages.id})`,
-    })
-    .from(users)
-    .where(condition)
-    .leftJoin(sessions, eq(sessions.userId, users.id))
-    .leftJoin(conversations, eq(conversations.userId, users.id))
-    .leftJoin(messages, eq(messages.conversationId, conversations.id))
-    .groupBy(users.id)
-    .orderBy(desc(users.createdAt));
+  const [rows, lastSessions] = await Promise.all([
+    db
+      .select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        avatarUrl: users.avatarUrl,
+        status: users.status,
+        createdAt: users.createdAt,
+        lastLoginAt: max(sessions.createdAt),
+        conversationCount: sql<number>`count(distinct ${conversations.id})`,
+        messageCount: sql<number>`count(distinct ${messages.id})`,
+      })
+      .from(users)
+      .where(condition)
+      .leftJoin(sessions, eq(sessions.userId, users.id))
+      .leftJoin(conversations, eq(conversations.userId, users.id))
+      .leftJoin(messages, eq(messages.conversationId, conversations.id))
+      .groupBy(users.id)
+      .orderBy(desc(users.createdAt)),
+    db
+      .selectDistinctOn([sessions.userId], {
+        userId: sessions.userId,
+        deviceModel: sessions.deviceModel,
+        osVersion: sessions.osVersion,
+      })
+      .from(sessions)
+      .orderBy(sessions.userId, desc(sessions.createdAt)),
+  ]);
+
+  const deviceByUser = new Map(lastSessions.map((s) => [s.userId, s]));
 
   return rows.map((row) => ({
     ...row,
     conversationCount: Number(row.conversationCount),
     messageCount: Number(row.messageCount),
+    deviceModel: deviceByUser.get(row.id)?.deviceModel ?? null,
+    osVersion: deviceByUser.get(row.id)?.osVersion ?? null,
   }));
 }
 
@@ -155,5 +169,32 @@ export async function updatePrompt(id: string, input: Partial<PromptInput>) {
 
 export async function deletePrompt(id: string): Promise<boolean> {
   const deleted = await db.delete(prompts).where(eq(prompts.id, id)).returning({ id: prompts.id });
+  return deleted.length > 0;
+}
+
+export async function listReleases() {
+  return db.select().from(appReleases).orderBy(desc(appReleases.versionCode));
+}
+
+export async function getLatestRelease() {
+  const [row] = await db.select().from(appReleases).orderBy(desc(appReleases.versionCode)).limit(1);
+  return row;
+}
+
+export type ReleaseInput = {
+  version: string;
+  versionCode: number;
+  apkUrl: string;
+  mandatory: boolean;
+  notes?: string | null;
+};
+
+export async function createRelease(input: ReleaseInput) {
+  const [row] = await db.insert(appReleases).values(input).returning();
+  return row;
+}
+
+export async function deleteRelease(id: string): Promise<boolean> {
+  const deleted = await db.delete(appReleases).where(eq(appReleases.id, id)).returning({ id: appReleases.id });
   return deleted.length > 0;
 }

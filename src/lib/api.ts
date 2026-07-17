@@ -62,6 +62,18 @@ export function getPrompts(): Promise<Prompt[]> {
   return request<Prompt[]>('/api/prompts');
 }
 
+export type AppRelease = {
+  version: string;
+  versionCode: number;
+  apkUrl: string;
+  mandatory: boolean;
+  notes: string | null;
+};
+
+export function getLatestRelease(): Promise<AppRelease> {
+  return request<AppRelease>('/api/app-version/latest');
+}
+
 export function sendMessage(
   conversationId: string,
   text: string,

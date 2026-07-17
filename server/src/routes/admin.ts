@@ -1,20 +1,27 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { requireAdmin } from '../admin-auth.js';
 import { asyncHandler } from '../async-handler.js';
 import {
   createPrompt,
+  createRelease,
   deleteConversation,
   deletePrompt,
+  deleteRelease,
   deleteUser,
   getConversationDetail,
   getStats,
   listConversations,
   listPrompts,
+  listReleases,
   listUsers,
   setUserStatus,
   updatePrompt,
 } from '../admin-store.js';
 import { DASHBOARD_HTML } from '../admin-dashboard-html.js';
+import { uploadApk } from '../supabase-storage.js';
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
 
 export const adminRouter = Router();
 
@@ -165,6 +172,59 @@ adminRouter.delete(
     const deleted = await deletePrompt(req.params.id);
     if (!deleted) {
       res.status(404).json({ error: 'Prompt not found' });
+      return;
+    }
+    res.status(204).end();
+  }),
+);
+
+// --- Releases (app updates) ---
+
+adminRouter.get(
+  '/admin/api/releases',
+  asyncHandler(async (_req, res) => {
+    res.json(await listReleases());
+  }),
+);
+
+adminRouter.post(
+  '/admin/api/releases',
+  upload.single('apk'),
+  asyncHandler(async (req, res) => {
+    const { version, versionCode, mandatory, notes } = req.body ?? {};
+    const file = req.file;
+    if (!file) {
+      res.status(400).json({ error: 'apk file is required' });
+      return;
+    }
+    if (typeof version !== 'string' || !version.trim()) {
+      res.status(400).json({ error: 'version is required' });
+      return;
+    }
+    const parsedVersionCode = Number(versionCode);
+    if (!Number.isInteger(parsedVersionCode) || parsedVersionCode <= 0) {
+      res.status(400).json({ error: 'versionCode must be a positive integer' });
+      return;
+    }
+
+    const apkUrl = await uploadApk(file.buffer, file.originalname);
+    const release = await createRelease({
+      version: version.trim(),
+      versionCode: parsedVersionCode,
+      apkUrl,
+      mandatory: mandatory === 'true' || mandatory === true,
+      notes: typeof notes === 'string' && notes.trim() ? notes.trim() : null,
+    });
+    res.status(201).json(release);
+  }),
+);
+
+adminRouter.delete(
+  '/admin/api/releases/:id',
+  asyncHandler(async (req, res) => {
+    const deleted = await deleteRelease(req.params.id);
+    if (!deleted) {
+      res.status(404).json({ error: 'Release not found' });
       return;
     }
     res.status(204).end();

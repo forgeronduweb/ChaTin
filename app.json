@@ -17,7 +17,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.monappandroid"
+      "package": "com.anonymous.monappandroid",
+      "versionCode": 1
     },
     "web": {
       "output": "static",

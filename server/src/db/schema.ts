@@ -1,4 +1,4 @@
-import { boolean, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -15,6 +15,9 @@ export const sessions = pgTable('sessions', {
   userId: uuid('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
+  deviceModel: text('device_model'),
+  osVersion: text('os_version'),
+  appVersion: text('app_version'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
@@ -43,5 +46,15 @@ export const prompts = pgTable('prompts', {
   color: text('color').notNull().default('#F3A7C7'),
   emoji: text('emoji'),
   featured: boolean('featured').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export const appReleases = pgTable('app_releases', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  version: text('version').notNull(),
+  versionCode: integer('version_code').notNull(),
+  apkUrl: text('apk_url').notNull(),
+  mandatory: boolean('mandatory').notNull().default(false),
+  notes: text('notes'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });

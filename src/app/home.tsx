@@ -5,11 +5,13 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GraphPaperBackground } from '@/components/graph-paper-background';
+import { UpdatePrompt } from '@/components/update-prompt';
 import { Brand, Fonts, Spacing } from '@/constants/theme';
 import { type AuthUser, getSession } from '@/lib/auth';
 import { listStoredConversations, type StoredConversation } from '@/lib/conversations-store';
 import { t } from '@/lib/i18n';
 import { usePrompts } from '@/lib/prompts';
+import { usePendingUpdate } from '@/lib/update-check';
 
 function initialsFor(name: string) {
   return name
@@ -35,6 +37,8 @@ export default function HomeScreen() {
   const [historyPreview, setHistoryPreview] = useState<StoredConversation[]>([]);
   const { prompts } = usePrompts();
   const featuredPrompts = prompts.filter((prompt) => prompt.featured).slice(0, 2);
+  const pendingUpdate = usePendingUpdate();
+  const [updateDismissed, setUpdateDismissed] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -127,6 +131,10 @@ export default function HomeScreen() {
           </View>
         </View>
       </SafeAreaView>
+
+      {pendingUpdate && !updateDismissed && (
+        <UpdatePrompt update={pendingUpdate} onDismiss={() => setUpdateDismissed(true)} />
+      )}
     </View>
   );
 }

@@ -10,6 +10,7 @@ authRouter.post('/auth/google', async (req, res) => {
     res.status(400).json({ error: 'Missing idToken' });
     return;
   }
+  const device = req.body?.device;
 
   try {
     const profile = await verifyGoogleIdToken(idToken);
@@ -18,7 +19,11 @@ authRouter.post('/auth/google', async (req, res) => {
       res.status(403).json({ error: 'This account has been suspended' });
       return;
     }
-    const token = await createSession(user.id);
+    const token = await createSession(user.id, {
+      deviceModel: typeof device?.deviceModel === 'string' ? device.deviceModel : undefined,
+      osVersion: typeof device?.osVersion === 'string' ? device.osVersion : undefined,
+      appVersion: typeof device?.appVersion === 'string' ? device.appVersion : undefined,
+    });
     res.json({
       token,
       user: { id: user.id, name: user.name, email: user.email, avatarUrl: user.avatarUrl },

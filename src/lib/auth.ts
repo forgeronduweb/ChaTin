@@ -1,3 +1,5 @@
+import * as Application from 'expo-application';
+import * as Device from 'expo-device';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
@@ -32,11 +34,19 @@ export async function clearSession(): Promise<void> {
   await SecureStore.deleteItemAsync(SESSION_KEY);
 }
 
+function currentDeviceInfo() {
+  return {
+    deviceModel: Device.modelName ?? undefined,
+    osVersion: Device.osVersion ?? undefined,
+    appVersion: Application.nativeApplicationVersion ?? undefined,
+  };
+}
+
 export async function signInWithGoogleIdToken(idToken: string): Promise<Session> {
   const response = await fetch(`${BASE_URL}/api/auth/google`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ idToken }),
+    body: JSON.stringify({ idToken, device: currentDeviceInfo() }),
   });
   if (!response.ok) {
     throw new Error(`Google sign-in failed with status ${response.status}`);

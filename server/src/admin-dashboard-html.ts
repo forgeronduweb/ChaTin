@@ -67,7 +67,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   .btn-outline:hover { border-color: var(--ink); }
   .btn-danger { background: none; border-color: var(--border); color: var(--red); }
   .btn-danger:hover { background: var(--red); border-color: var(--red); color: var(--white); }
-  .btn-sm { padding: 5px 12px; font-size: 12px; }
+  .btn-sm { padding: 7px 14px; font-size: 12px; }
   .btn:disabled { opacity: 0.5; cursor: default; }
 
   /* Stats */
@@ -114,10 +114,9 @@ export const DASHBOARD_HTML = `<!doctype html>
   /* Prompts grid */
   .prompts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
   .prompt-card { border-radius: var(--radius-md); padding: 18px; display: flex; flex-direction: column; gap: 8px; position: relative; }
-  .prompt-emoji { font-size: 26px; }
   .prompt-title { font-weight: 700; font-size: 15px; line-height: 1.3; }
   .prompt-meta { font-size: 12px; color: rgba(22,22,22,0.6); }
-  .prompt-actions { display: flex; gap: 8px; margin-top: 8px; }
+  .prompt-actions { display: flex; gap: 10px; margin-top: 12px; }
   .prompt-featured { position: absolute; top: 14px; right: 14px; font-size: 10.5px; font-weight: 700; background: var(--ink); color: var(--white); padding: 3px 10px; border-radius: 999px; }
 
   /* Modal */
@@ -141,7 +140,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   .swatch.selected { border-color: var(--ink); }
   .checkbox-row { display: flex; align-items: center; gap: 8px; }
   .checkbox-row label { margin: 0; }
-  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 14px; margin-top: 24px; }
 
   .msg-list { display: flex; flex-direction: column; gap: 10px; max-height: 50vh; overflow-y: auto; }
   .msg-bubble { padding: 10px 14px; border-radius: 14px; font-size: 13.5px; line-height: 1.4; }
@@ -170,6 +169,10 @@ export const DASHBOARD_HTML = `<!doctype html>
     <button class="nav-item" data-view="prompts" style="--accent:#C9A7F3">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M3 12h3M18 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/><circle cx="12" cy="12" r="3"/></svg>
       Prompts
+    </button>
+    <button class="nav-item" data-view="updates" style="--accent:#8EC5FC">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+      Mises à jour
     </button>
   </aside>
 
@@ -229,7 +232,7 @@ export const DASHBOARD_HTML = `<!doctype html>
       <div class="panel">
         <table>
           <thead>
-            <tr><th>Utilisateur</th><th>Email</th><th>Inscrit le</th><th>Dernière connexion</th><th>Conv.</th><th>Msgs</th><th>Statut</th><th></th></tr>
+            <tr><th>Utilisateur</th><th>Email</th><th>Appareil</th><th>Inscrit le</th><th>Dernière connexion</th><th>Conv.</th><th>Msgs</th><th>Statut</th><th></th></tr>
           </thead>
           <tbody id="users-body"></tbody>
         </table>
@@ -269,6 +272,27 @@ export const DASHBOARD_HTML = `<!doctype html>
       <div class="loading" id="prompts-loading">Chargement…</div>
       <div class="empty" id="prompts-empty" style="display:none">Aucun prompt pour le moment.</div>
     </section>
+
+    <!-- Mises à jour -->
+    <section class="view" id="view-updates">
+      <div class="view-header">
+        <h1 class="view-title">Mises à jour</h1>
+        <button class="btn btn-primary" id="add-release-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M12 5v14M5 12h14"/></svg>
+          Publier une version
+        </button>
+      </div>
+      <div class="panel">
+        <table>
+          <thead>
+            <tr><th>Version</th><th>Code</th><th>Publiée le</th><th>Type</th><th></th></tr>
+          </thead>
+          <tbody id="releases-body"></tbody>
+        </table>
+        <div class="loading" id="releases-loading">Chargement…</div>
+        <div class="empty" id="releases-empty" style="display:none">Aucune version publiée.</div>
+      </div>
+    </section>
   </main>
 
   <!-- Conversation detail modal -->
@@ -300,10 +324,6 @@ export const DASHBOARD_HTML = `<!doctype html>
           <input class="form-input" id="prompt-category" placeholder="Ex: Cuisine, Productivité…" />
         </div>
         <div class="form-row">
-          <label for="prompt-emoji">Icône (emoji)</label>
-          <input class="form-input" id="prompt-emoji" placeholder="🍣" maxlength="4" />
-        </div>
-        <div class="form-row">
           <label>Couleur</label>
           <div class="color-swatches" id="color-swatches"></div>
           <input type="hidden" id="prompt-color" value="#F3A7C7" />
@@ -315,6 +335,40 @@ export const DASHBOARD_HTML = `<!doctype html>
         <div class="modal-actions">
           <button type="button" class="btn btn-outline" data-close="prompt-modal">Annuler</button>
           <button type="submit" class="btn btn-primary">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Release upload modal -->
+  <div class="modal-overlay" id="release-modal">
+    <div class="modal">
+      <button class="modal-close" data-close="release-modal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      <h2>Publier une version</h2>
+      <form id="release-form">
+        <div class="form-row">
+          <label for="release-apk">Fichier APK</label>
+          <input class="form-input" id="release-apk" type="file" accept=".apk" required />
+        </div>
+        <div class="form-row">
+          <label for="release-version">Version (ex: 1.4.0)</label>
+          <input class="form-input" id="release-version" required />
+        </div>
+        <div class="form-row">
+          <label for="release-version-code">Code de version (android.versionCode utilisé pour ce build)</label>
+          <input class="form-input" id="release-version-code" type="number" min="1" step="1" required />
+        </div>
+        <div class="form-row">
+          <label for="release-notes">Notes (optionnel)</label>
+          <input class="form-input" id="release-notes" placeholder="Ce qui a changé dans cette version" />
+        </div>
+        <div class="form-row checkbox-row">
+          <input type="checkbox" id="release-mandatory" />
+          <label for="release-mandatory">Mise à jour obligatoire</label>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" data-close="release-modal">Annuler</button>
+          <button type="submit" class="btn btn-primary" id="release-submit-btn">Publier</button>
         </div>
       </form>
     </div>
@@ -399,9 +453,13 @@ export const DASHBOARD_HTML = `<!doctype html>
         const toggleBtn = u.status === 'suspended'
           ? \`<button class="btn btn-outline btn-sm" data-action="reactivate" data-id="\${u.id}">Réactiver</button>\`
           : \`<button class="btn btn-outline btn-sm" data-action="suspend" data-id="\${u.id}">Suspendre</button>\`;
+        const device = u.deviceModel
+          ? escapeHtml(u.deviceModel) + (u.osVersion ? ' · Android ' + escapeHtml(u.osVersion) : '')
+          : '—';
         return \`<tr>
           <td><div class="user-cell">\${avatar}\${escapeHtml(u.name)}</div></td>
           <td class="muted">\${escapeHtml(u.email)}</td>
+          <td class="muted">\${device}</td>
           <td class="muted">\${fmtDate(u.createdAt)}</td>
           <td class="muted">\${fmtDate(u.lastLoginAt)}</td>
           <td>\${u.conversationCount}</td>
@@ -461,6 +519,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     }
 
     async function openConversation(id) {
+      if (!confirm("Vous allez consulter les messages privés d'un utilisateur. Continuer ?")) return;
       const res = await fetch('/admin/api/conversations/' + id);
       const conv = await res.json();
       document.getElementById('conv-modal-title').textContent = conv.title;
@@ -488,7 +547,6 @@ export const DASHBOARD_HTML = `<!doctype html>
       grid.innerHTML = prompts.map((p) => \`
         <div class="prompt-card" style="background:\${p.color}">
           \${p.featured ? '<span class="prompt-featured">Vedette</span>' : ''}
-          <span class="prompt-emoji">\${p.emoji || '💡'}</span>
           <span class="prompt-title">\${escapeHtml(p.title)}</span>
           <span class="prompt-meta">\${escapeHtml(p.category || '')}\${p.author ? ' · ' + escapeHtml(p.author) : ''}</span>
           <div class="prompt-actions">
@@ -530,7 +588,6 @@ export const DASHBOARD_HTML = `<!doctype html>
       document.getElementById('prompt-title').value = p.title;
       document.getElementById('prompt-author').value = p.author || '';
       document.getElementById('prompt-category').value = p.category || '';
-      document.getElementById('prompt-emoji').value = p.emoji || '';
       document.getElementById('prompt-featured').checked = p.featured;
       document.getElementById('prompt-color').value = p.color;
       renderSwatches(p.color);
@@ -544,7 +601,6 @@ export const DASHBOARD_HTML = `<!doctype html>
         title: document.getElementById('prompt-title').value,
         author: document.getElementById('prompt-author').value,
         category: document.getElementById('prompt-category').value,
-        emoji: document.getElementById('prompt-emoji').value,
         color: document.getElementById('prompt-color').value,
         featured: document.getElementById('prompt-featured').checked,
       };
@@ -564,6 +620,67 @@ export const DASHBOARD_HTML = `<!doctype html>
       loadPrompts();
     }
 
+    // ---------- Releases ----------
+    async function loadReleases() {
+      const res = await fetch('/admin/api/releases');
+      const releases = await res.json();
+      const body = document.getElementById('releases-body');
+      document.getElementById('releases-loading').style.display = 'none';
+      document.getElementById('releases-empty').style.display = releases.length === 0 ? 'block' : 'none';
+      body.innerHTML = releases.map((r) => \`
+        <tr>
+          <td><a href="\${r.apkUrl}" target="_blank" rel="noopener">\${escapeHtml(r.version)}</a></td>
+          <td class="muted">\${r.versionCode}</td>
+          <td class="muted">\${fmtDate(r.createdAt)}</td>
+          <td>\${r.mandatory ? '<span class="badge badge-suspended">Obligatoire</span>' : '<span class="badge badge-active">Optionnelle</span>'}</td>
+          <td><div class="actions-cell">
+            <button class="btn btn-danger btn-sm" data-action="delete-release" data-id="\${r.id}">Supprimer</button>
+          </div></td>
+        </tr>\`).join('');
+
+      body.querySelectorAll('[data-action="delete-release"]').forEach((b) => b.addEventListener('click', () => deleteReleaseRow(b)));
+    }
+
+    document.getElementById('add-release-btn').addEventListener('click', () => {
+      document.getElementById('release-form').reset();
+      openModal('release-modal');
+    });
+
+    document.getElementById('release-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const file = document.getElementById('release-apk').files[0];
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('apk', file);
+      formData.append('version', document.getElementById('release-version').value);
+      formData.append('versionCode', document.getElementById('release-version-code').value);
+      formData.append('notes', document.getElementById('release-notes').value);
+      formData.append('mandatory', document.getElementById('release-mandatory').checked);
+
+      const submitBtn = document.getElementById('release-submit-btn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Envoi…';
+      try {
+        const res = await fetch('/admin/api/releases', { method: 'POST', body: formData });
+        if (!res.ok) throw new Error('Upload failed');
+        closeModal('release-modal');
+        loadReleases();
+      } catch {
+        alert("Échec de l'envoi de l'APK. Vérifiez la configuration du stockage.");
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Publier';
+      }
+    });
+
+    async function deleteReleaseRow(btn) {
+      if (!confirm('Supprimer cette version ? Le fichier restera dans le stockage.')) return;
+      btn.disabled = true;
+      await fetch('/admin/api/releases/' + btn.dataset.id, { method: 'DELETE' });
+      loadReleases();
+    }
+
     // ---------- Modals ----------
     function openModal(id) { document.getElementById(id).classList.add('open'); }
     function closeModal(id) { document.getElementById(id).classList.remove('open'); }
@@ -579,6 +696,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     loadUsers();
     loadConversations();
     loadPrompts();
+    loadReleases();
   </script>
 </body>
 </html>`;

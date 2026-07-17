@@ -28,8 +28,22 @@ export async function upsertGoogleUser(profile: {
   return user;
 }
 
-export async function createSession(userId: string): Promise<string> {
-  const [session] = await db.insert(sessions).values({ userId }).returning();
+export type DeviceInfo = {
+  deviceModel?: string;
+  osVersion?: string;
+  appVersion?: string;
+};
+
+export async function createSession(userId: string, device?: DeviceInfo): Promise<string> {
+  const [session] = await db
+    .insert(sessions)
+    .values({
+      userId,
+      deviceModel: device?.deviceModel,
+      osVersion: device?.osVersion,
+      appVersion: device?.appVersion,
+    })
+    .returning();
   return session.token;
 }
 

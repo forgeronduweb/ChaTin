@@ -13,6 +13,7 @@
     },
     "preview": {
       "distribution": "internal",
+      "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_API_URL": "https://mon-app-android-server.onrender.com",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "554220466641-flhav9pon7kv0g06bk6eics1dl0e24jq.apps.googleusercontent.com"
