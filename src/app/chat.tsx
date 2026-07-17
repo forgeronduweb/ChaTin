@@ -78,6 +78,7 @@ export default function ChatScreen() {
   const conversationId = useRef<string | null>(null);
   const localId = useRef(stored?.id ?? id ?? createLocalConversationId());
   const abortControllerRef = useRef<AbortController | null>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
   const hasMessages = messages.length > 0;
 
   useEffect(() => {
@@ -143,6 +144,7 @@ export default function ChatScreen() {
     if (!draft.trim() || sending) return;
     const text = draft.trim();
     setDraft('');
+    Keyboard.dismiss();
     void submit(text);
   }
 
@@ -157,7 +159,7 @@ export default function ChatScreen() {
 
         <View style={styles.topBar}>
           <Pressable
-            onPress={() => router.push('/home')}
+            onPress={() => router.replace('/home')}
             style={({ pressed }) => pressed && styles.pressed}>
             <View style={styles.iconButton}>
               <SymbolView
@@ -190,14 +192,20 @@ export default function ChatScreen() {
           </Pressable>
         </View>
 
-        <Text style={styles.title}>{conversationTitle ?? t('chatNewChatTitle')}</Text>
+        <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
+          {conversationTitle ?? t('chatNewChatTitle')}
+        </Text>
       </View>
 
       {hasMessages ? (
         <View style={styles.chatCard}>
           <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
             <View style={styles.messagesArea}>
-              <ScrollView contentContainerStyle={styles.messages} showsVerticalScrollIndicator={false}>
+              <ScrollView
+                ref={scrollViewRef}
+                contentContainerStyle={styles.messages}
+                showsVerticalScrollIndicator={false}
+                onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}>
                 {messages.map((message) =>
                   message.from === 'bot' ? (
                     <View key={message.id} style={styles.botMessageBlock}>
@@ -243,6 +251,8 @@ export default function ChatScreen() {
                   </View>
                 )}
               </ScrollView>
+
+              <View style={styles.topFade} pointerEvents="none" />
 
               {sending && (
                 <View style={styles.stopButtonFloating}>
@@ -357,7 +367,9 @@ const styles = StyleSheet.create({
     height: 96,
   },
   messages: {
-    padding: Spacing.four,
+    paddingHorizontal: Spacing.four,
+    paddingTop: Spacing.four + Spacing.two,
+    paddingBottom: Spacing.four,
     gap: Spacing.four,
   },
   botMessageBlock: {
@@ -387,6 +399,16 @@ const styles = StyleSheet.create({
   messagesArea: {
     flex: 1,
     position: 'relative',
+  },
+  topFade: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: Spacing.five + Spacing.two,
+    borderTopLeftRadius: Spacing.five,
+    borderTopRightRadius: Spacing.five,
+    experimental_backgroundImage: `linear-gradient(180deg, ${Brand.chatBackground} 40%, transparent)`,
   },
   loadingBubble: {
     backgroundColor: Brand.chatBubble,

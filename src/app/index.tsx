@@ -1,6 +1,6 @@
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Dimensions, Image, type ImageSourcePropType, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
@@ -17,6 +17,7 @@ import { GraphPaperBackground } from '@/components/graph-paper-background';
 import { SocialAuthButtons } from '@/components/social-auth-buttons';
 import { Brand, Fonts, Spacing } from '@/constants/theme';
 import { t } from '@/lib/i18n';
+import { hasCompletedOnboarding, markOnboardingComplete } from '@/lib/onboarding';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const COLUMN_WIDTH = (SCREEN_WIDTH - Spacing.four * 2 - Spacing.three) / 2;
@@ -88,8 +89,18 @@ function FloatingSticker({
   );
 }
 
+function goToHome() {
+  markOnboardingComplete();
+  router.replace('/home');
+}
+
 export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
+  const [alreadyOnboarded] = useState(hasCompletedOnboarding);
+
+  if (alreadyOnboarded) {
+    return <Redirect href="/home" />;
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom', 'left', 'right']}>
@@ -131,7 +142,7 @@ export default function WelcomeScreen() {
       <View style={styles.bottomOverlay}>
         <View style={styles.bottomFade} />
         <View style={[styles.bottomSection, { paddingBottom: Spacing.three + insets.bottom }]}>
-          <SocialAuthButtons onSignedIn={() => router.push('/home')} />
+          <SocialAuthButtons onSignedIn={goToHome} />
 
           <View style={styles.dividerRow}>
             <View style={styles.dividerLine} />
@@ -140,7 +151,7 @@ export default function WelcomeScreen() {
           </View>
 
           <Pressable
-            onPress={() => router.push('/home')}
+            onPress={goToHome}
             style={({ pressed }) => [styles.cta, pressed && styles.pressed]}>
             <Text style={styles.ctaText}>{t('welcomeSkip')}</Text>
             <View style={styles.ctaArrow}>
