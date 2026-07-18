@@ -334,7 +334,12 @@ export default function ChatScreen() {
     setIsTranscribing(true);
     try {
       const text = await transcribeAudio(uri);
-      setDraft((current) => (current ? `${current} ${text}`.trim() : text.trim()));
+      const finalText = (draft ? `${draft} ${text}` : text).trim();
+      if (finalText && !sending) {
+        setDraft('');
+        Keyboard.dismiss();
+        void submit(finalText);
+      }
     } catch (error) {
       console.error('Failed to transcribe audio:', error);
     } finally {
