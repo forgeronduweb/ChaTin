@@ -2,7 +2,7 @@
   "expo": {
     "name": "ChaTin",
     "slug": "mon-app-android",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/launcher.png",
     "scheme": "monappandroid",
@@ -18,7 +18,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.anonymous.monappandroid",
-      "versionCode": 1
+      "versionCode": 4
     },
     "web": {
       "output": "static",
@@ -41,7 +41,9 @@
         "expo-build-properties",
         {
           "android": {
-            "buildArchs": ["arm64-v8a"]
+            "buildArchs": [
+              "arm64-v8a"
+            ]
           }
         }
       ]
