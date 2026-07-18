@@ -174,6 +174,10 @@ export const DASHBOARD_HTML = `<!doctype html>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
       Mises à jour
     </button>
+    <button class="nav-item" data-view="feedback" style="--accent:#3FBE7A">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+      Retours
+    </button>
   </aside>
 
   <main class="main">
@@ -291,6 +295,23 @@ export const DASHBOARD_HTML = `<!doctype html>
         </table>
         <div class="loading" id="releases-loading">Chargement…</div>
         <div class="empty" id="releases-empty" style="display:none">Aucune version publiée.</div>
+      </div>
+    </section>
+
+    <!-- Retours -->
+    <section class="view" id="view-feedback">
+      <div class="view-header">
+        <h1 class="view-title">Retours</h1>
+      </div>
+      <div class="panel">
+        <table>
+          <thead>
+            <tr><th>Message</th><th>Utilisateur</th><th>Version</th><th>Date</th><th></th></tr>
+          </thead>
+          <tbody id="feedback-body"></tbody>
+        </table>
+        <div class="loading" id="feedback-loading">Chargement…</div>
+        <div class="empty" id="feedback-empty" style="display:none">Aucun retour pour le moment.</div>
       </div>
     </section>
   </main>
@@ -664,8 +685,16 @@ export const DASHBOARD_HTML = `<!doctype html>
       try {
         const res = await fetch('/admin/api/releases', { method: 'POST', body: formData });
         if (!res.ok) throw new Error('Upload failed');
+        const release = await res.json();
         closeModal('release-modal');
         loadReleases();
+        if (release.githubError) {
+          alert(
+            "La mise à jour a bien été publiée pour l'app (les utilisateurs seront notifiés), " +
+            "mais l'envoi vers GitHub Releases a échoué : le bouton de téléchargement de la landing page " +
+            "ne pointera pas vers cette version.\n\nDétail : " + release.githubError,
+          );
+        }
       } catch {
         alert("Échec de l'envoi de l'APK. Vérifiez la configuration du stockage.");
       } finally {
@@ -679,6 +708,32 @@ export const DASHBOARD_HTML = `<!doctype html>
       btn.disabled = true;
       await fetch('/admin/api/releases/' + btn.dataset.id, { method: 'DELETE' });
       loadReleases();
+    }
+
+    // ---------- Retours ----------
+    async function loadFeedback() {
+      const res = await fetch('/admin/api/feedback');
+      const rows = await res.json();
+      const body = document.getElementById('feedback-body');
+      document.getElementById('feedback-loading').style.display = 'none';
+      document.getElementById('feedback-empty').style.display = rows.length === 0 ? 'block' : 'none';
+      body.innerHTML = rows.map((f) => \`
+        <tr>
+          <td style="max-width:420px;white-space:normal">\${escapeHtml(f.message)}</td>
+          <td class="muted">\${f.userName ? escapeHtml(f.userName) + (f.userEmail ? ' · ' + escapeHtml(f.userEmail) : '') : 'Invité'}</td>
+          <td class="muted">\${f.appVersion ? escapeHtml(f.appVersion) : '—'}</td>
+          <td class="muted">\${fmtDate(f.createdAt)}</td>
+          <td><button class="btn btn-danger btn-sm" data-action="delete-feedback" data-id="\${f.id}">Supprimer</button></td>
+        </tr>\`).join('');
+
+      body.querySelectorAll('[data-action="delete-feedback"]').forEach((b) => b.addEventListener('click', () => deleteFeedbackRow(b)));
+    }
+
+    async function deleteFeedbackRow(btn) {
+      if (!confirm('Supprimer ce retour ?')) return;
+      btn.disabled = true;
+      await fetch('/admin/api/feedback/' + btn.dataset.id, { method: 'DELETE' });
+      loadFeedback();
     }
 
     // ---------- Modals ----------
@@ -697,6 +752,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     loadConversations();
     loadPrompts();
     loadReleases();
+    loadFeedback();
   </script>
 </body>
 </html>`;

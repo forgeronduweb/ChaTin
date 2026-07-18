@@ -6,12 +6,14 @@ import {
   createPrompt,
   createRelease,
   deleteConversation,
+  deleteFeedback,
   deletePrompt,
   deleteRelease,
   deleteUser,
   getConversationDetail,
   getStats,
   listConversations,
+  listFeedback,
   listPrompts,
   listReleases,
   listUsers,
@@ -19,6 +21,7 @@ import {
   updatePrompt,
 } from '../admin-store.js';
 import { DASHBOARD_HTML } from '../admin-dashboard-html.js';
+import { publishGithubRelease } from '../github-releases.js';
 import { uploadApk } from '../supabase-storage.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
@@ -178,6 +181,27 @@ adminRouter.delete(
   }),
 );
 
+// --- Feedback ---
+
+adminRouter.get(
+  '/admin/api/feedback',
+  asyncHandler(async (_req, res) => {
+    res.json(await listFeedback());
+  }),
+);
+
+adminRouter.delete(
+  '/admin/api/feedback/:id',
+  asyncHandler(async (req, res) => {
+    const deleted = await deleteFeedback(req.params.id);
+    if (!deleted) {
+      res.status(404).json({ error: 'Feedback not found' });
+      return;
+    }
+    res.status(204).end();
+  }),
+);
+
 // --- Releases (app updates) ---
 
 adminRouter.get(
@@ -208,14 +232,27 @@ adminRouter.post(
     }
 
     const apkUrl = await uploadApk(file.buffer, file.originalname);
+    const trimmedNotes = typeof notes === 'string' && notes.trim() ? notes.trim() : null;
     const release = await createRelease({
       version: version.trim(),
       versionCode: parsedVersionCode,
       apkUrl,
       mandatory: mandatory === 'true' || mandatory === true,
-      notes: typeof notes === 'string' && notes.trim() ? notes.trim() : null,
+      notes: trimmedNotes,
     });
-    res.status(201).json(release);
+
+    // Best-effort: the in-app update check only depends on the row above,
+    // so a GitHub hiccup shouldn't fail the whole request — but the landing
+    // page's download link depends on this succeeding, so report it back.
+    let githubError: string | null = null;
+    try {
+      await publishGithubRelease(file.buffer, release.version, trimmedNotes);
+    } catch (error) {
+      console.error('GitHub release publish failed:', error);
+      githubError = error instanceof Error ? error.message : 'Unknown error';
+    }
+
+    res.status(201).json({ ...release, githubError });
   }),
 );
 
