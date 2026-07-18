@@ -26,6 +26,16 @@ const en = {
   chatRecording: 'Recording...',
   chatMicPermissionTitle: 'Microphone access needed',
   chatMicPermissionMessage: 'Allow microphone access in your phone settings to record voice messages.',
+  chatActionCopy: 'Copy',
+  chatActionCopied: 'Copied',
+  chatActionShare: 'Share',
+  chatActionReadAloud: 'Read aloud',
+  chatActionStopReading: 'Stop reading',
+  chatActionLike: 'Good response',
+  chatActionDislike: 'Bad response',
+  chatLoadingThinking: 'Thinking…',
+  chatLoadingGenerating: 'Generating a reply…',
+  chatLoadingAlmost: 'Almost there…',
 
   loginTitle: 'Sign in to ChaTin',
   loginSubtitle:
@@ -111,6 +121,16 @@ const fr: Record<keyof typeof en, string> = {
   chatMicPermissionTitle: 'Accès au micro requis',
   chatMicPermissionMessage:
     'Autorise l’accès au micro dans les paramètres de ton téléphone pour enregistrer des messages vocaux.',
+  chatActionCopy: 'Copier',
+  chatActionCopied: 'Copié',
+  chatActionShare: 'Partager',
+  chatActionReadAloud: 'Lire à voix haute',
+  chatActionStopReading: 'Arrêter la lecture',
+  chatActionLike: 'Bonne réponse',
+  chatActionDislike: 'Mauvaise réponse',
+  chatLoadingThinking: 'Réflexion en cours…',
+  chatLoadingGenerating: 'Génération de la réponse…',
+  chatLoadingAlmost: 'Presque prêt…',
 
   loginTitle: 'Connecte-toi à ChaTin',
   loginSubtitle:

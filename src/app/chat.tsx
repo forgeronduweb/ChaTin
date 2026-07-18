@@ -5,29 +5,53 @@ import {
   useAudioRecorder,
 } from 'expo-audio';
 import * as Clipboard from 'expo-clipboard';
+import * as DocumentPicker from 'expo-document-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useEffect, useRef, useState } from 'react';
-import { Image, Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { FlatList, Image, Keyboard, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, {
   Easing,
+  FadeIn,
   FadeInUp,
   FadeOut,
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
   withRepeat,
+  withSequence,
+  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AnimatedPressable } from '@/components/animated-pressable';
 import { AppDialog } from '@/components/app-dialog';
-import { GraphPaperBackground } from '@/components/graph-paper-background';
+import { MessageActionBar, type Reaction } from '@/components/message-action-bar';
 import { Brand, Fonts, Spacing } from '@/constants/theme';
-import { createConversation, sendMessage, transcribeAudio } from '@/lib/api';
+import {
+  type ChatMessage,
+  createConversation,
+  type PickedFile,
+  sendMessage,
+  sendMessageWithFile,
+  setMessageReaction,
+  transcribeAudio,
+} from '@/lib/api';
 import { ensureChatSession, updateChatSession, useChatSession } from '@/lib/chat-session-store';
 import { createLocalConversationId, getStoredConversation, saveStoredConversation } from '@/lib/conversations-store';
-import { t } from '@/lib/i18n';
+import { locale, t } from '@/lib/i18n';
+
+// expo-speech is a native module - guarded with require() (catchable, unlike a
+// static import) so opening the chat doesn't crash on a dev client that
+// hasn't been rebuilt with it yet; read-aloud just no-ops until it has.
+let Speech: typeof import('expo-speech') | null = null;
+try {
+  Speech = require('expo-speech');
+} catch {
+  Speech = null;
+}
 
 const AnimatedImage = Animated.createAnimatedComponent(Image);
 
@@ -51,6 +75,32 @@ function SpinningFlower({ size }: { size: number }) {
   );
 }
 
+const LOADING_STATUS_KEYS = ['chatLoadingThinking', 'chatLoadingGenerating', 'chatLoadingAlmost'] as const;
+
+// Cycles through a few status phrases with a soft cross-fade, like ChatGPT's
+// "Thinking…" / "Generating…" hints - just enough motion to read as a live
+// process rather than a frozen spinner, without claiming any real progress.
+function LoadingStatusText({ style }: { style?: object }) {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIndex((current) => (current + 1) % LOADING_STATUS_KEYS.length);
+    }, 1900);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <Animated.Text
+      key={index}
+      entering={FadeIn.duration(280)}
+      exiting={FadeOut.duration(280)}
+      style={style}>
+      {t(LOADING_STATUS_KEYS[index])}
+    </Animated.Text>
+  );
+}
+
 function ChatInputBar({
   draft,
   onChangeDraft,
@@ -61,6 +111,9 @@ function ChatInputBar({
   onStartRecording,
   onStopRecording,
   onCancelRecording,
+  attachedFile,
+  onAttach,
+  onRemoveAttachment,
 }: {
   draft: string;
   onChangeDraft: (text: string) => void;
@@ -71,6 +124,9 @@ function ChatInputBar({
   onStartRecording: () => void;
   onStopRecording: () => void;
   onCancelRecording: () => void;
+  attachedFile: PickedFile | null;
+  onAttach: () => void;
+  onRemoveAttachment: () => void;
 }) {
   if (isRecording) {
     return (
@@ -92,36 +148,62 @@ function ChatInputBar({
   }
 
   return (
-    <View style={[styles.inputRow, { paddingBottom: Spacing.three + bottomPadding }]}>
-      <TextInput
-        value={draft}
-        onChangeText={onChangeDraft}
-        placeholder={t('chatPlaceholder')}
-        placeholderTextColor={Brand.textMuted}
-        style={styles.input}
-        onSubmitEditing={onSend}
-        returnKeyType="send"
-      />
-      {draft.trim() ? (
-        <AnimatedPressable onPress={onSend} style={styles.sendButton}>
-          <SymbolView
-            tintColor={Brand.ink}
-            name={{ ios: 'arrow.up', android: 'arrow_upward', web: 'arrow_upward' }}
-            size={18}
-          />
-        </AnimatedPressable>
-      ) : (
-        <AnimatedPressable
-          onPress={onStartRecording}
-          disabled={isTranscribing}
-          style={[styles.sendButton, isTranscribing && styles.sendButtonDisabled]}>
-          {isTranscribing ? (
-            <SpinningFlower size={20} />
-          ) : (
-            <SymbolView tintColor={Brand.ink} name={{ ios: 'mic.fill', android: 'mic', web: 'mic' }} size={18} />
-          )}
-        </AnimatedPressable>
+    <View style={{ paddingBottom: Spacing.three + bottomPadding }}>
+      {attachedFile && (
+        <View style={styles.attachmentChipRow}>
+          <View style={styles.attachmentChip}>
+            <SymbolView
+              tintColor={Brand.ink}
+              name={{ ios: 'doc.fill', android: 'description', web: 'description' }}
+              size={14}
+            />
+            <Text style={styles.attachmentChipText} numberOfLines={1}>
+              {attachedFile.name}
+            </Text>
+            <Pressable onPress={onRemoveAttachment} hitSlop={8}>
+              <SymbolView
+                tintColor={Brand.textMuted}
+                name={{ ios: 'xmark.circle.fill', android: 'cancel', web: 'cancel' }}
+                size={16}
+              />
+            </Pressable>
+          </View>
+        </View>
       )}
+      <View style={styles.inputRow}>
+        <Pressable onPress={onAttach} style={({ pressed }) => [styles.attachButton, pressed && styles.pressed]}>
+          <SymbolView tintColor={Brand.white} name={{ ios: 'paperclip', android: 'attach_file', web: 'attach_file' }} size={18} />
+        </Pressable>
+        <TextInput
+          value={draft}
+          onChangeText={onChangeDraft}
+          placeholder={t('chatPlaceholder')}
+          placeholderTextColor={Brand.textMuted}
+          style={styles.input}
+          onSubmitEditing={onSend}
+          returnKeyType="send"
+        />
+        {draft.trim() || attachedFile ? (
+          <AnimatedPressable onPress={onSend} style={styles.sendButton}>
+            <SymbolView
+              tintColor={Brand.ink}
+              name={{ ios: 'arrow.up', android: 'arrow_upward', web: 'arrow_upward' }}
+              size={18}
+            />
+          </AnimatedPressable>
+        ) : (
+          <AnimatedPressable
+            onPress={onStartRecording}
+            disabled={isTranscribing}
+            style={[styles.sendButton, isTranscribing && styles.sendButtonDisabled]}>
+            {isTranscribing ? (
+              <SpinningFlower size={20} />
+            ) : (
+              <SymbolView tintColor={Brand.ink} name={{ ios: 'mic.fill', android: 'mic', web: 'mic' }} size={18} />
+            )}
+          </AnimatedPressable>
+        )}
+      </View>
     </View>
   );
 }
@@ -167,6 +249,119 @@ function MessageActionPopover({
   );
 }
 
+const MessageBubble = memo(function MessageBubble({
+  message,
+  isEditing,
+  editDraft,
+  onChangeEditDraft,
+  onConfirmEdit,
+  onCancelEdit,
+  editInputRef,
+  canLongPress,
+  onLongPress,
+  reaction,
+  onReact,
+  isSpeaking,
+  onToggleSpeak,
+}: {
+  message: ChatMessage;
+  isEditing: boolean;
+  editDraft: string;
+  onChangeEditDraft: (text: string) => void;
+  onConfirmEdit: () => void;
+  onCancelEdit: () => void;
+  editInputRef: React.RefObject<TextInput | null>;
+  canLongPress: boolean;
+  onLongPress: (y: number) => void;
+  reaction: Reaction;
+  onReact: (reaction: Reaction) => void;
+  isSpeaking: boolean;
+  onToggleSpeak: () => void;
+}) {
+  if (message.from === 'bot') {
+    return (
+      <Animated.View entering={FadeInUp.duration(260).springify().damping(18)} style={styles.botMessageBlock}>
+        <View style={styles.botLabelRow}>
+          <Image
+            source={require('@/assets/images/flower_only_1024.png')}
+            style={styles.botLabelLogo}
+            resizeMode="contain"
+          />
+          <Text style={styles.botLabel}>ChaTin</Text>
+        </View>
+        <View style={styles.botBubble}>
+          <Text style={styles.botText}>{message.text}</Text>
+        </View>
+        <MessageActionBar
+          text={message.text}
+          reaction={reaction}
+          onReact={onReact}
+          isSpeaking={isSpeaking}
+          onToggleSpeak={onToggleSpeak}
+        />
+      </Animated.View>
+    );
+  }
+
+  return (
+    <Animated.View entering={FadeInUp.duration(220).springify().damping(18)} style={styles.meMessageBlock}>
+      {isEditing ? (
+        <View style={styles.meBubble}>
+          <TextInput
+            ref={editInputRef}
+            value={editDraft}
+            onChangeText={onChangeEditDraft}
+            style={styles.meEditInput}
+            multiline
+          />
+          <View style={styles.editActionsRow}>
+            <Pressable
+              onPress={onCancelEdit}
+              style={({ pressed }) => [styles.editActionButton, pressed && styles.pressed]}>
+              <SymbolView tintColor={Brand.textMuted} name={{ ios: 'xmark', android: 'close', web: 'close' }} size={13} />
+            </Pressable>
+            <Pressable
+              onPress={onConfirmEdit}
+              style={({ pressed }) => [
+                styles.editActionButton,
+                styles.editActionButtonPrimary,
+                pressed && styles.pressed,
+              ]}>
+              <SymbolView tintColor={Brand.white} name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={13} />
+            </Pressable>
+          </View>
+        </View>
+      ) : (
+        <Pressable
+          onLongPress={canLongPress ? (event) => onLongPress(event.nativeEvent.pageY) : undefined}
+          delayLongPress={350}>
+          <View style={styles.meBubble}>
+            {message.attachmentName && (
+              <View style={styles.messageAttachmentChip}>
+                <SymbolView
+                  tintColor={Brand.ink}
+                  name={{ ios: 'doc.fill', android: 'description', web: 'description' }}
+                  size={12}
+                />
+                <Text style={styles.messageAttachmentText} numberOfLines={1}>
+                  {message.attachmentName}
+                </Text>
+              </View>
+            )}
+            {message.text ? <Text style={styles.meText}>{message.text}</Text> : null}
+          </View>
+        </Pressable>
+      )}
+      <View style={styles.meFooter}>
+        <View style={styles.meAvatar}>
+          <Text style={styles.meAvatarEmoji}>🙂</Text>
+        </View>
+        <Text style={styles.meLabel}>Me</Text>
+      </View>
+    </Animated.View>
+  );
+});
+
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const { id, title } = useLocalSearchParams<{ id?: string; title?: string }>();
@@ -174,14 +369,12 @@ export default function ChatScreen() {
   const [draft, setDraft] = useState('');
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const localId = useRef(stored?.id ?? id ?? createLocalConversationId());
-  const scrollViewRef = useRef<ScrollView>(null);
+  const flatListRef = useRef<FlatList<ChatMessage>>(null);
   const session = useChatSession(localId.current, {
     messages: stored?.messages ?? [],
     title: stored?.title ?? title ?? null,
   });
   const { messages, sending } = session;
-  const conversationTitle = session.title;
-  const hasMessages = messages.length > 0;
   const [popoverFor, setPopoverFor] = useState<{ id: string; y: number } | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
@@ -189,11 +382,36 @@ export default function ChatScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [showMicPermissionDialog, setShowMicPermissionDialog] = useState(false);
+  const [attachedFile, setAttachedFile] = useState<PickedFile | null>(null);
+  const [inputBarHeight, setInputBarHeight] = useState(0);
+  // Seeded with a realistic estimate so messages already clear the header
+  // icons before the very first onLayout measurement lands.
+  const [headerHeight, setHeaderHeight] = useState(64);
+  // Seeded with a realistic estimate (not 0) so the very first message sent
+  // in a session already reserves roughly the right amount of space, before
+  // the button has actually laid out once to report its true height.
+  const [stopButtonHeight, setStopButtonHeight] = useState(44);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
+  const [heroSpinning, setHeroSpinning] = useState(false);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const lastUserMessageId = [...messages].reverse().find((message) => message.from === 'me')?.id ?? null;
   const editInputRef = useRef<TextInput>(null);
-  const messageLayoutY = useRef<Record<string, number>>({});
   const editingMessageIdRef = useRef<string | null>(null);
+  // The centered logo stays put (as a static badge, then a spinner while the
+  // first prompt is running) until the first bot reply exists - once that
+  // lands, the FlatList takes over and the logo never comes back.
+  const showIntroLogo = !messages.some((message) => message.from === 'bot');
+  const heroX = useSharedValue(0);
+  const heroY = useSharedValue(0);
+  const heroScale = useSharedValue(1);
+
+  const heroWrapperStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: heroX.value }, { translateY: heroY.value }],
+  }));
+
+  const heroBadgeStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: '-5deg' }, { scale: heroScale.value }],
+  }));
 
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', (event) => {
@@ -212,11 +430,37 @@ export default function ChatScreen() {
   function scrollToEditingMessage() {
     const id = editingMessageIdRef.current;
     if (!id) return;
-    const y = messageLayoutY.current[id];
-    if (y !== undefined) {
-      scrollViewRef.current?.scrollTo({ y: Math.max(0, y - Spacing.three), animated: true });
+    const index = messages.findIndex((message) => message.id === id);
+    if (index >= 0) {
+      flatListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.3 });
     }
   }
+
+  // FlatList's scrollToEnd() computes its target offset from whatever content
+  // length it currently has measured, which can undershoot right after
+  // content grows (a new bubble, the stop button, the bottom padding all
+  // changing at once). scrollToOffset with a deliberately oversized value
+  // sidesteps that estimate entirely - the scroll view clamps it to the
+  // real max itself, so this always lands on the true end. Only the first
+  // call animates; stacking several animated scrolls while layout is still
+  // settling is what made the list visibly judder, so the follow-up
+  // corrections snap instantly instead - invisible if the first call
+  // already landed correctly, a silent fix if it didn't.
+  function scrollToEndRobust() {
+    if (editingMessageIdRef.current) return;
+    flatListRef.current?.scrollToOffset({ offset: 1e7, animated: true });
+    [150, 400].forEach((delay) => {
+      setTimeout(() => {
+        if (editingMessageIdRef.current) return;
+        flatListRef.current?.scrollToOffset({ offset: 1e7, animated: false });
+      }, delay);
+    });
+  }
+
+  useEffect(() => {
+    if (!sending) return;
+    scrollToEndRobust();
+  }, [sending]);
 
   useEffect(() => {
     editingMessageIdRef.current = editingMessageId;
@@ -252,11 +496,27 @@ export default function ChatScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function submit(text: string) {
+  async function submit(text: string, file?: PickedFile | null) {
     const current = ensureChatSession(localId.current, { messages: [], title: null });
     if (!current.serverConversationId) return;
-    const resolvedTitle = current.title ?? text;
-    const messagesWithUser = [...current.messages, { id: `${Date.now()}`, from: 'me' as const, text }];
+    if (current.messages.length === 0) {
+      // The logo hops from center to the top-left corner (where the bot
+      // label always lives) instead of just fading out, then keeps
+      // spinning there once it "lands" while the reply is generated.
+      heroX.value = withTiming(-130, { duration: 480, easing: Easing.out(Easing.cubic) });
+      heroY.value = withSequence(
+        withTiming(-100, { duration: 220, easing: Easing.out(Easing.quad) }),
+        withSpring(-230, { damping: 7, stiffness: 90 }, (finished) => {
+          if (finished) runOnJS(setHeroSpinning)(true);
+        }),
+      );
+      heroScale.value = withDelay(200, withSpring(0.2, { damping: 9, stiffness: 130 }));
+    }
+    const resolvedTitle = current.title ?? (text || file?.name || t('chatNewChatTitle'));
+    const messagesWithUser = [
+      ...current.messages,
+      { id: `${Date.now()}`, from: 'me' as const, text, attachmentName: file?.name ?? null },
+    ];
     const controller = new AbortController();
     updateChatSession(localId.current, {
       title: resolvedTitle,
@@ -274,7 +534,9 @@ export default function ChatScreen() {
       updatedAt: Date.now(),
     });
     try {
-      const result = await sendMessage(current.serverConversationId, text, controller.signal);
+      const result = file
+        ? await sendMessageWithFile(current.serverConversationId, text, file, controller.signal)
+        : await sendMessage(current.serverConversationId, text, controller.signal);
       updateChatSession(localId.current, { messages: result.messages, sending: false, abortController: null });
       saveStoredConversation({
         id: localId.current,
@@ -303,11 +565,32 @@ export default function ChatScreen() {
   }
 
   function handleSend() {
-    if (!draft.trim() || sending) return;
+    if ((!draft.trim() && !attachedFile) || sending) return;
     const text = draft.trim();
+    const file = attachedFile;
     setDraft('');
+    setAttachedFile(null);
     Keyboard.dismiss();
-    void submit(text);
+    void submit(text, file);
+  }
+
+  async function handleAttach() {
+    if (sending) return;
+    const result = await DocumentPicker.getDocumentAsync({
+      type: [
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-excel',
+      ],
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+    const asset = result.assets[0];
+    setAttachedFile({ uri: asset.uri, name: asset.name });
+  }
+
+  function handleRemoveAttachment() {
+    setAttachedFile(null);
   }
 
   function handleStopGenerating() {
@@ -351,6 +634,64 @@ export default function ChatScreen() {
     setIsRecording(false);
     await recorder.stop();
   }
+
+  function handleReact(messageId: string, reaction: Reaction) {
+    const current = ensureChatSession(localId.current, { messages: [], title: null });
+    const updatedMessages = current.messages.map((message) =>
+      message.id === messageId ? { ...message, reaction } : message,
+    );
+    updateChatSession(localId.current, { messages: updatedMessages });
+    saveStoredConversation({
+      id: localId.current,
+      title: current.title ?? t('chatNewChatTitle'),
+      messages: updatedMessages,
+      updatedAt: Date.now(),
+    });
+    if (current.serverConversationId) {
+      void setMessageReaction(current.serverConversationId, messageId, reaction).catch((error) => {
+        console.error('Failed to save reaction:', error);
+      });
+    }
+  }
+
+  function handleToggleSpeak(messageId: string, text: string) {
+    if (!Speech) return;
+    if (speakingMessageId === messageId) {
+      Speech.stop();
+      setSpeakingMessageId(null);
+      return;
+    }
+    Speech.stop();
+    setSpeakingMessageId(messageId);
+    Speech.speak(text, {
+      language: locale === 'fr' ? 'fr-FR' : 'en-US',
+      onDone: () => setSpeakingMessageId(null),
+      onStopped: () => setSpeakingMessageId(null),
+      onError: () => setSpeakingMessageId(null),
+    });
+  }
+
+  const renderItem = useCallback(
+    ({ item }: { item: ChatMessage }) => (
+      <MessageBubble
+        message={item}
+        isEditing={editingMessageId === item.id}
+        editDraft={editDraft}
+        onChangeEditDraft={setEditDraft}
+        onConfirmEdit={handleConfirmEdit}
+        onCancelEdit={handleCancelEdit}
+        editInputRef={editInputRef}
+        canLongPress={item.id === lastUserMessageId && !sending}
+        onLongPress={(y) => setPopoverFor({ id: item.id, y })}
+        reaction={item.reaction ?? null}
+        onReact={(reaction) => handleReact(item.id, reaction)}
+        isSpeaking={speakingMessageId === item.id}
+        onToggleSpeak={() => handleToggleSpeak(item.id, item.text)}
+      />
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [editingMessageId, editDraft, lastUserMessageId, sending, speakingMessageId],
+  );
 
   function handleCopyMessage() {
     const message = messages.find((item) => item.id === popoverFor?.id);
@@ -432,227 +773,168 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <View style={styles.headerSection}>
-        <GraphPaperBackground />
+      <View style={styles.chatCard}>
+        <View style={styles.messagesArea}>
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            keyExtractor={(message) => message.id}
+            renderItem={renderItem}
+            contentContainerStyle={[
+              styles.messages,
+              {
+                paddingTop: headerHeight + Spacing.six,
+                paddingBottom:
+                  inputBarHeight +
+                  Spacing.three +
+                  keyboardHeight +
+                  (sending ? stopButtonHeight + Spacing.three : 0),
+              },
+            ]}
+            showsVerticalScrollIndicator={false}
+            removeClippedSubviews
+            maxToRenderPerBatch={8}
+            windowSize={9}
+            initialNumToRender={12}
+            onScrollToIndexFailed={({ index }) => {
+              flatListRef.current?.scrollToOffset({ offset: index * 80, animated: true });
+              setTimeout(() => scrollToEditingMessage(), 120);
+            }}
+            onContentSizeChange={() => {
+              // Editing an existing message grows/shrinks its multiline
+              // input as the user types, which would otherwise re-fire
+              // this and yank the view back to the bottom mid-edit.
+              if (editingMessageIdRef.current) return;
+              scrollToEndRobust();
+            }}
+            ListFooterComponent={
+              sending && !showIntroLogo ? (
+                <Animated.View entering={FadeInUp.duration(220)} style={styles.botMessageBlock}>
+                  <View style={styles.botLabelRow}>
+                    <Image
+                      source={require('@/assets/images/flower_only_1024.png')}
+                      style={styles.botLabelLogo}
+                      resizeMode="contain"
+                    />
+                    <Text style={styles.botLabel}>ChaTin</Text>
+                  </View>
+                  <View style={styles.loadingBubble}>
+                    <SpinningFlower size={22} />
+                    <LoadingStatusText style={styles.loadingStatusText} />
+                  </View>
+                </Animated.View>
+              ) : null
+            }
+          />
 
-        <View style={styles.topBar}>
-          <Pressable
-            onPress={() => router.replace('/home')}
-            style={({ pressed }) => pressed && styles.pressed}>
-            <View style={styles.iconButton}>
-              <SymbolView
-                tintColor={Brand.white}
-                name={{ ios: 'line.3.horizontal.decrease', android: 'sort', web: 'sort' }}
-                size={18}
-              />
-            </View>
-          </Pressable>
+          <View style={[styles.topFade, { height: headerHeight + Spacing.two }]} pointerEvents="none" />
 
-          <View style={styles.modelPill}>
-            <Text style={styles.modelPillText}>Chatin 1.4</Text>
-            <SymbolView
-              tintColor={Brand.white}
-              name={{ ios: 'chevron.down', android: 'expand_more', web: 'expand_more' }}
-              size={14}
-            />
-          </View>
+          <View
+            style={[
+              styles.bottomFade,
+              {
+                height:
+                  inputBarHeight +
+                  Spacing.six +
+                  keyboardHeight +
+                  (sending ? stopButtonHeight + Spacing.three : 0),
+              },
+            ]}
+            pointerEvents="none"
+          />
 
-          <Pressable
-            onPress={() => router.replace('/chat')}
-            style={({ pressed }) => pressed && styles.pressed}>
-            <View style={styles.iconButton}>
-              <SymbolView
-                tintColor={Brand.white}
-                name={{ ios: 'square.and.pencil', android: 'edit', web: 'edit' }}
-                size={18}
-              />
-            </View>
-          </Pressable>
-        </View>
-
-        <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
-          {conversationTitle ?? t('chatNewChatTitle')}
-        </Text>
-      </View>
-
-      {hasMessages ? (
-        <View style={styles.chatCard}>
-          <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
-            <View style={styles.messagesArea}>
-              <ScrollView
-                ref={scrollViewRef}
-                contentContainerStyle={styles.messages}
-                showsVerticalScrollIndicator={false}
-                onContentSizeChange={() => {
-                  // Editing an existing message grows/shrinks its multiline
-                  // input as the user types, which would otherwise re-fire
-                  // this and yank the view back to the bottom mid-edit.
-                  if (editingMessageIdRef.current) return;
-                  scrollViewRef.current?.scrollToEnd({ animated: true });
-                }}>
-                {messages.map((message) =>
-                  message.from === 'bot' ? (
-                    <Animated.View
-                      key={message.id}
-                      entering={FadeInUp.duration(260).springify().damping(18)}
-                      style={styles.botMessageBlock}>
-                      <View style={styles.botLabelRow}>
-                        <Image
-                          source={require('@/assets/images/flower_only_1024.png')}
-                          style={styles.botLabelLogo}
-                          resizeMode="contain"
-                        />
-                        <Text style={styles.botLabel}>ChaTin</Text>
-                      </View>
-                      <View style={styles.botBubble}>
-                        <Text style={styles.botText}>{message.text}</Text>
-                      </View>
-                    </Animated.View>
+          {showIntroLogo && (
+            <Animated.View style={[styles.introOverlay, heroWrapperStyle]} pointerEvents="none">
+              <View style={styles.heroRow}>
+                <Animated.View style={[styles.emptyLogoBadge, heroBadgeStyle]}>
+                  {heroSpinning ? (
+                    <SpinningFlower size={70} />
                   ) : (
-                    <Animated.View
-                      key={message.id}
-                      entering={FadeInUp.duration(220).springify().damping(18)}
-                      style={styles.meMessageBlock}
-                      onLayout={(event) => {
-                        messageLayoutY.current[message.id] = event.nativeEvent.layout.y;
-                      }}>
-                      {editingMessageId === message.id ? (
-                        <View style={styles.meBubble}>
-                          <TextInput
-                            ref={editInputRef}
-                            value={editDraft}
-                            onChangeText={setEditDraft}
-                            style={styles.meEditInput}
-                            multiline
-                          />
-                          <View style={styles.editActionsRow}>
-                            <Pressable
-                              onPress={handleCancelEdit}
-                              style={({ pressed }) => [styles.editActionButton, pressed && styles.pressed]}>
-                              <SymbolView
-                                tintColor={Brand.textMuted}
-                                name={{ ios: 'xmark', android: 'close', web: 'close' }}
-                                size={13}
-                              />
-                            </Pressable>
-                            <Pressable
-                              onPress={handleConfirmEdit}
-                              style={({ pressed }) => [
-                                styles.editActionButton,
-                                styles.editActionButtonPrimary,
-                                pressed && styles.pressed,
-                              ]}>
-                              <SymbolView
-                                tintColor={Brand.white}
-                                name={{ ios: 'checkmark', android: 'check', web: 'check' }}
-                                size={13}
-                              />
-                            </Pressable>
-                          </View>
-                        </View>
-                      ) : (
-                        <Pressable
-                          onLongPress={
-                            message.id === lastUserMessageId && !sending
-                              ? (event) => setPopoverFor({ id: message.id, y: event.nativeEvent.pageY })
-                              : undefined
-                          }
-                          delayLongPress={350}>
-                          <View style={styles.meBubble}>
-                            <Text style={styles.meText}>{message.text}</Text>
-                          </View>
-                        </Pressable>
-                      )}
-                      <View style={styles.meFooter}>
-                        <View style={styles.meAvatar}>
-                          <Text style={styles.meAvatarEmoji}>🙂</Text>
-                        </View>
-                        <Text style={styles.meLabel}>Me</Text>
-                      </View>
-                    </Animated.View>
-                  ),
-                )}
-                {sending && (
-                  <Animated.View entering={FadeInUp.duration(220)} style={styles.botMessageBlock}>
-                    <View style={styles.botLabelRow}>
-                      <Image
-                        source={require('@/assets/images/flower_only_1024.png')}
-                        style={styles.botLabelLogo}
-                        resizeMode="contain"
-                      />
-                      <Text style={styles.botLabel}>ChaTin</Text>
-                    </View>
-                    <View style={styles.loadingBubble}>
-                      <SpinningFlower size={22} />
-                    </View>
-                  </Animated.View>
-                )}
-              </ScrollView>
-
-              <View style={styles.topFade} pointerEvents="none" />
-
-              {showCopiedToast && (
-                <Animated.View
-                  entering={FadeInUp.duration(180)}
-                  exiting={FadeOut.duration(180)}
-                  style={styles.copiedToast}
-                  pointerEvents="none">
-                  <Text style={styles.copiedToastText}>{t('chatMessageCopied')}</Text>
+                    <Image
+                      source={require('@/assets/images/flower_only_1024.png')}
+                      style={styles.emptyLogo}
+                      resizeMode="contain"
+                    />
+                  )}
                 </Animated.View>
-              )}
+                {heroSpinning && <LoadingStatusText style={styles.loadingStatusText} />}
+              </View>
+            </Animated.View>
+          )}
 
-              {sending && (
-                <Animated.View entering={FadeInUp.duration(200)} style={styles.stopButtonFloating}>
-                  <AnimatedPressable onPress={handleStopGenerating} style={styles.stopButton}>
-                    <View style={styles.stopDot} />
-                    <Text style={styles.stopButtonText}>{t('chatStopGenerating')}</Text>
-                  </AnimatedPressable>
-                </Animated.View>
-              )}
-            </View>
+          {showCopiedToast && (
+            <Animated.View
+              entering={FadeInUp.duration(180)}
+              exiting={FadeOut.duration(180)}
+              style={styles.copiedToast}
+              pointerEvents="none">
+              <Text style={styles.copiedToastText}>{t('chatMessageCopied')}</Text>
+            </Animated.View>
+          )}
 
-            <ChatInputBar
-              draft={draft}
-              onChangeDraft={setDraft}
-              onSend={handleSend}
-              bottomPadding={insets.bottom}
-              isRecording={isRecording}
-              isTranscribing={isTranscribing}
-              onStartRecording={handleStartRecording}
-              onStopRecording={handleStopRecording}
-              onCancelRecording={handleCancelRecording}
-            />
-          </View>
+          {sending && (
+            <Animated.View
+              entering={FadeInUp.duration(200)}
+              onLayout={(event) => setStopButtonHeight(event.nativeEvent.layout.height)}
+              style={[
+                styles.stopButtonFloating,
+                { bottom: inputBarHeight + Spacing.three + keyboardHeight },
+              ]}>
+              <AnimatedPressable onPress={handleStopGenerating} style={styles.stopButton}>
+                <View style={styles.stopDot} />
+                <Text style={styles.stopButtonText}>{t('chatStopGenerating')}</Text>
+              </AnimatedPressable>
+            </Animated.View>
+          )}
         </View>
-      ) : (
-        <View style={styles.emptyBody}>
-          <GraphPaperBackground />
 
-          <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
-            <View style={styles.emptyCenter}>
-              <View style={styles.emptyLogoBadge}>
-                <Image
-                  source={require('@/assets/images/flower_only_1024.png')}
-                  style={styles.emptyLogo}
-                  resizeMode="contain"
+        <View
+          style={[styles.inputBarOverlay, { bottom: keyboardHeight }]}
+          onLayout={(event) => setInputBarHeight(event.nativeEvent.layout.height)}>
+          <ChatInputBar
+            draft={draft}
+            onChangeDraft={setDraft}
+            onSend={handleSend}
+            bottomPadding={insets.bottom}
+            isRecording={isRecording}
+            isTranscribing={isTranscribing}
+            onStartRecording={handleStartRecording}
+            onStopRecording={handleStopRecording}
+            onCancelRecording={handleCancelRecording}
+            attachedFile={attachedFile}
+            onAttach={handleAttach}
+            onRemoveAttachment={handleRemoveAttachment}
+          />
+        </View>
+
+        <View style={styles.headerOverlay} onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height)}>
+          <View style={styles.topBar}>
+            <Pressable
+              onPress={() => router.replace('/home')}
+              style={({ pressed }) => pressed && styles.pressed}>
+              <View style={styles.iconButton}>
+                <SymbolView
+                  tintColor={Brand.white}
+                  name={{ ios: 'line.3.horizontal.decrease', android: 'sort', web: 'sort' }}
+                  size={18}
                 />
               </View>
-            </View>
+            </Pressable>
 
-            <ChatInputBar
-              draft={draft}
-              onChangeDraft={setDraft}
-              onSend={handleSend}
-              bottomPadding={insets.bottom}
-              isRecording={isRecording}
-              isTranscribing={isTranscribing}
-              onStartRecording={handleStartRecording}
-              onStopRecording={handleStopRecording}
-              onCancelRecording={handleCancelRecording}
-            />
+            <Pressable
+              onPress={() => router.replace('/chat')}
+              style={({ pressed }) => pressed && styles.pressed}>
+              <View style={styles.iconButton}>
+                <SymbolView
+                  tintColor={Brand.white}
+                  name={{ ios: 'square.and.pencil', android: 'edit', web: 'edit' }}
+                  size={18}
+                />
+              </View>
+            </Pressable>
           </View>
         </View>
-      )}
+      </View>
 
       <MessageActionPopover
         anchor={popoverFor}
@@ -675,16 +957,16 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Brand.cream,
+    backgroundColor: Brand.chatBackground,
   },
-  flex: {
-    flex: 1,
-  },
-  headerSection: {
+  headerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.two,
     paddingBottom: Spacing.three,
-    gap: Spacing.three,
   },
   topBar: {
     flexDirection: 'row',
@@ -695,29 +977,9 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Brand.ink,
+    backgroundColor: Brand.chatBubble,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  modelPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.one,
-    backgroundColor: Brand.ink,
-    borderRadius: 999,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-  },
-  modelPillText: {
-    color: Brand.white,
-    fontSize: 14,
-    fontFamily: Fonts.semiBold,
-  },
-  title: {
-    color: Brand.ink,
-    fontSize: 26,
-    lineHeight: 32,
-    fontFamily: Fonts.bold,
   },
   chatCard: {
     flex: 1,
@@ -726,24 +988,33 @@ const styles = StyleSheet.create({
     borderTopRightRadius: Spacing.five,
     overflow: 'hidden',
   },
-  emptyBody: {
-    flex: 1,
-  },
-  emptyCenter: {
-    flex: 1,
+  introOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  heroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  inputBarOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   emptyLogoBadge: {
     width: 160,
     height: 160,
     borderRadius: 80,
     backgroundColor: Brand.ink,
-    borderWidth: 5,
-    borderColor: Brand.yellow,
     alignItems: 'center',
     justifyContent: 'center',
-    transform: [{ rotate: '-5deg' }],
     shadowColor: Brand.ink,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.22,
@@ -797,12 +1068,27 @@ const styles = StyleSheet.create({
     height: Spacing.five + Spacing.two,
     borderTopLeftRadius: Spacing.five,
     borderTopRightRadius: Spacing.five,
-    experimental_backgroundImage: `linear-gradient(180deg, ${Brand.chatBackground} 40%, transparent)`,
+    experimental_backgroundImage: 'linear-gradient(180deg, rgba(21, 21, 21, 0.65) 0%, transparent 100%)',
+  },
+  bottomFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    experimental_backgroundImage: `linear-gradient(0deg, ${Brand.chatBackground} 40%, transparent)`,
   },
   loadingBubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
     backgroundColor: Brand.chatBubble,
     borderRadius: Spacing.five,
     padding: Spacing.three,
+  },
+  loadingStatusText: {
+    color: Brand.textMuted,
+    fontSize: 13,
+    fontFamily: Fonts.regular,
   },
   stopButtonFloating: {
     position: 'absolute',
@@ -880,7 +1166,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.two,
     paddingHorizontal: Spacing.four,
-    paddingBottom: Spacing.three,
     paddingTop: Spacing.two,
   },
   input: {
@@ -903,6 +1188,51 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     opacity: 0.6,
+  },
+  attachButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Brand.chatBubble,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  attachmentChipRow: {
+    paddingHorizontal: Spacing.four,
+    paddingBottom: Spacing.two,
+  },
+  attachmentChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+    alignSelf: 'flex-start',
+    maxWidth: '85%',
+    backgroundColor: Brand.chatInput,
+    borderRadius: 999,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+  },
+  attachmentChipText: {
+    flexShrink: 1,
+    color: Brand.white,
+    fontSize: 13,
+    fontFamily: Fonts.regular,
+  },
+  messageAttachmentChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+    alignSelf: 'flex-start',
+    backgroundColor: Brand.paper,
+    borderRadius: 999,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 4,
+    marginBottom: Spacing.one,
+  },
+  messageAttachmentText: {
+    color: Brand.ink,
+    fontSize: 12,
+    fontFamily: Fonts.semiBold,
   },
   recordingIndicator: {
     flex: 1,
