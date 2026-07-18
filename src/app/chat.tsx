@@ -168,14 +168,16 @@ export default function ChatScreen() {
   useEffect(() => {
     editingMessageIdRef.current = editingMessageId;
     if (!editingMessageId) return;
-    // The TextInput only mounts once we swap out of the Pressable bubble, and
-    // autoFocus alone doesn't reliably raise the keyboard on Android here -
-    // focus it explicitly once it's actually on screen.
-    const frame = requestAnimationFrame(() => {
+    // Editing starts from the "Modifier" row inside the popover Modal, which
+    // closes in the same render as this TextInput mounting. On Android the
+    // dialog window has to actually finish tearing down before focus can
+    // move to a view in the main window - a single animation frame isn't
+    // enough, so this needs a real delay rather than a rAF.
+    const timeout = setTimeout(() => {
       editInputRef.current?.focus();
       scrollToEditingMessage();
-    });
-    return () => cancelAnimationFrame(frame);
+    }, 300);
+    return () => clearTimeout(timeout);
   }, [editingMessageId]);
 
   useEffect(() => {
