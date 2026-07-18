@@ -138,10 +138,14 @@ export default function ChatScreen() {
   const [editDraft, setEditDraft] = useState('');
   const [showCopiedToast, setShowCopiedToast] = useState(false);
   const lastUserMessageId = [...messages].reverse().find((message) => message.from === 'me')?.id ?? null;
+  const editInputRef = useRef<TextInput>(null);
+  const messageLayoutY = useRef<Record<string, number>>({});
+  const editingMessageIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', (event) => {
       setKeyboardHeight(event.endCoordinates.height);
+      scrollToEditingMessage();
     });
     const hideSub = Keyboard.addListener('keyboardDidHide', () => {
       setKeyboardHeight(0);
@@ -151,6 +155,28 @@ export default function ChatScreen() {
       hideSub.remove();
     };
   }, []);
+
+  function scrollToEditingMessage() {
+    const id = editingMessageIdRef.current;
+    if (!id) return;
+    const y = messageLayoutY.current[id];
+    if (y !== undefined) {
+      scrollViewRef.current?.scrollTo({ y: Math.max(0, y - Spacing.three), animated: true });
+    }
+  }
+
+  useEffect(() => {
+    editingMessageIdRef.current = editingMessageId;
+    if (!editingMessageId) return;
+    // The TextInput only mounts once we swap out of the Pressable bubble, and
+    // autoFocus alone doesn't reliably raise the keyboard on Android here -
+    // focus it explicitly once it's actually on screen.
+    const frame = requestAnimationFrame(() => {
+      editInputRef.current?.focus();
+      scrollToEditingMessage();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [editingMessageId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -364,7 +390,13 @@ export default function ChatScreen() {
                 ref={scrollViewRef}
                 contentContainerStyle={styles.messages}
                 showsVerticalScrollIndicator={false}
-                onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}>
+                onContentSizeChange={() => {
+                  // Editing an existing message grows/shrinks its multiline
+                  // input as the user types, which would otherwise re-fire
+                  // this and yank the view back to the bottom mid-edit.
+                  if (editingMessageIdRef.current) return;
+                  scrollViewRef.current?.scrollToEnd({ animated: true });
+                }}>
                 {messages.map((message) =>
                   message.from === 'bot' ? (
                     <Animated.View
@@ -387,15 +419,18 @@ export default function ChatScreen() {
                     <Animated.View
                       key={message.id}
                       entering={FadeInUp.duration(220).springify().damping(18)}
-                      style={styles.meMessageBlock}>
+                      style={styles.meMessageBlock}
+                      onLayout={(event) => {
+                        messageLayoutY.current[message.id] = event.nativeEvent.layout.y;
+                      }}>
                       {editingMessageId === message.id ? (
                         <View style={styles.meBubble}>
                           <TextInput
+                            ref={editInputRef}
                             value={editDraft}
                             onChangeText={setEditDraft}
                             style={styles.meEditInput}
                             multiline
-                            autoFocus
                           />
                           <View style={styles.editActionsRow}>
                             <Pressable
