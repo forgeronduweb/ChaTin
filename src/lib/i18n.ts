@@ -23,6 +23,9 @@ const en = {
   chatEditMessage: 'Edit',
   chatCopyMessage: 'Copy',
   chatMessageCopied: 'Copied!',
+  chatRecording: 'Recording...',
+  chatMicPermissionTitle: 'Microphone access needed',
+  chatMicPermissionMessage: 'Allow microphone access in your phone settings to record voice messages.',
 
   loginTitle: 'Sign in to ChaTin',
   loginSubtitle:
@@ -104,6 +107,10 @@ const fr: Record<keyof typeof en, string> = {
   chatEditMessage: 'Modifier',
   chatCopyMessage: 'Copier',
   chatMessageCopied: 'Copié !',
+  chatRecording: 'Enregistrement...',
+  chatMicPermissionTitle: 'Accès au micro requis',
+  chatMicPermissionMessage:
+    'Autorise l’accès au micro dans les paramètres de ton téléphone pour enregistrer des messages vocaux.',
 
   loginTitle: 'Connecte-toi à ChaTin',
   loginSubtitle:

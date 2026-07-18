@@ -1,3 +1,5 @@
+import { fetch as expoFetch } from 'expo/fetch';
+import { File } from 'expo-file-system';
 import { Platform } from 'react-native';
 
 import { getSession } from './auth';
@@ -72,6 +74,27 @@ export type AppRelease = {
 
 export function getLatestRelease(): Promise<AppRelease> {
   return request<AppRelease>('/api/app-version/latest');
+}
+
+export async function transcribeAudio(uri: string): Promise<string> {
+  const session = await getSession();
+  const formData = new FormData();
+  // RN 0.86's fetch/FormData no longer accepts the classic {uri, type, name}
+  // object for a file part ("Unsupported FormDataPart implementation") - a
+  // File instance (which implements Blob) is the current way to attach a
+  // local file, uploaded here via expo/fetch rather than the global fetch.
+  formData.append('audio', new File(uri), 'voice-message.m4a');
+
+  const response = await expoFetch(`${BASE_URL}/api/transcribe`, {
+    method: 'POST',
+    headers: session ? { Authorization: `Bearer ${session.token}` } : undefined,
+    body: formData,
+  });
+  if (!response.ok) {
+    throw new Error(`Request to /api/transcribe failed with status ${response.status}`);
+  }
+  const data = (await response.json()) as { text: string };
+  return data.text;
 }
 
 export function submitFeedback(message: string, appVersion?: string): Promise<void> {

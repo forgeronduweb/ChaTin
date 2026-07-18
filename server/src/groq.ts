@@ -1,4 +1,4 @@
-import Groq from 'groq-sdk';
+import Groq, { toFile } from 'groq-sdk';
 import type { ChatMessage } from './store.js';
 
 const SYSTEM_PROMPT =
@@ -6,10 +6,22 @@ const SYSTEM_PROMPT =
 
 let client: Groq | null = null;
 
-export async function generateReply(history: ChatMessage[]): Promise<string> {
+function getClient(): Groq {
   client ??= new Groq({ apiKey: process.env.GROQ_API_KEY });
+  return client;
+}
 
-  const response = await client.chat.completions.create({
+export async function transcribeAudio(buffer: Buffer, filename: string, mimeType: string): Promise<string> {
+  const file = await toFile(buffer, filename, { type: mimeType });
+  const transcription = await getClient().audio.transcriptions.create({
+    model: 'whisper-large-v3-turbo',
+    file,
+  });
+  return transcription.text;
+}
+
+export async function generateReply(history: ChatMessage[]): Promise<string> {
+  const response = await getClient().chat.completions.create({
     model: 'llama-3.3-70b-versatile',
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },

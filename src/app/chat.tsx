@@ -1,3 +1,9 @@
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+} from 'expo-audio';
 import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
@@ -15,9 +21,10 @@ import Animated, {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AnimatedPressable } from '@/components/animated-pressable';
+import { AppDialog } from '@/components/app-dialog';
 import { GraphPaperBackground } from '@/components/graph-paper-background';
 import { Brand, Fonts, Spacing } from '@/constants/theme';
-import { createConversation, sendMessage } from '@/lib/api';
+import { createConversation, sendMessage, transcribeAudio } from '@/lib/api';
 import { ensureChatSession, updateChatSession, useChatSession } from '@/lib/chat-session-store';
 import { createLocalConversationId, getStoredConversation, saveStoredConversation } from '@/lib/conversations-store';
 import { t } from '@/lib/i18n';
@@ -49,12 +56,41 @@ function ChatInputBar({
   onChangeDraft,
   onSend,
   bottomPadding,
+  isRecording,
+  isTranscribing,
+  onStartRecording,
+  onStopRecording,
+  onCancelRecording,
 }: {
   draft: string;
   onChangeDraft: (text: string) => void;
   onSend: () => void;
   bottomPadding: number;
+  isRecording: boolean;
+  isTranscribing: boolean;
+  onStartRecording: () => void;
+  onStopRecording: () => void;
+  onCancelRecording: () => void;
 }) {
+  if (isRecording) {
+    return (
+      <View style={[styles.inputRow, { paddingBottom: Spacing.three + bottomPadding }]}>
+        <View style={styles.recordingIndicator}>
+          <View style={styles.recordingDot} />
+          <Text style={styles.recordingText}>{t('chatRecording')}</Text>
+        </View>
+        <Pressable
+          onPress={onCancelRecording}
+          style={({ pressed }) => [styles.recordingCancelButton, pressed && styles.pressed]}>
+          <SymbolView tintColor={Brand.textMuted} name={{ ios: 'trash', android: 'delete', web: 'delete' }} size={18} />
+        </Pressable>
+        <AnimatedPressable onPress={onStopRecording} style={styles.sendButton}>
+          <SymbolView tintColor={Brand.ink} name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={18} />
+        </AnimatedPressable>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.inputRow, { paddingBottom: Spacing.three + bottomPadding }]}>
       <TextInput
@@ -66,13 +102,26 @@ function ChatInputBar({
         onSubmitEditing={onSend}
         returnKeyType="send"
       />
-      <AnimatedPressable onPress={onSend} style={styles.sendButton}>
-        <SymbolView
-          tintColor={Brand.ink}
-          name={{ ios: 'arrow.up', android: 'arrow_upward', web: 'arrow_upward' }}
-          size={18}
-        />
-      </AnimatedPressable>
+      {draft.trim() ? (
+        <AnimatedPressable onPress={onSend} style={styles.sendButton}>
+          <SymbolView
+            tintColor={Brand.ink}
+            name={{ ios: 'arrow.up', android: 'arrow_upward', web: 'arrow_upward' }}
+            size={18}
+          />
+        </AnimatedPressable>
+      ) : (
+        <AnimatedPressable
+          onPress={onStartRecording}
+          disabled={isTranscribing}
+          style={[styles.sendButton, isTranscribing && styles.sendButtonDisabled]}>
+          {isTranscribing ? (
+            <SpinningFlower size={20} />
+          ) : (
+            <SymbolView tintColor={Brand.ink} name={{ ios: 'mic.fill', android: 'mic', web: 'mic' }} size={18} />
+          )}
+        </AnimatedPressable>
+      )}
     </View>
   );
 }
@@ -137,6 +186,10 @@ export default function ChatScreen() {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
   const [showCopiedToast, setShowCopiedToast] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [showMicPermissionDialog, setShowMicPermissionDialog] = useState(false);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const lastUserMessageId = [...messages].reverse().find((message) => message.from === 'me')?.id ?? null;
   const editInputRef = useRef<TextInput>(null);
   const messageLayoutY = useRef<Record<string, number>>({});
@@ -259,6 +312,39 @@ export default function ChatScreen() {
 
   function handleStopGenerating() {
     session.abortController?.abort();
+  }
+
+  async function handleStartRecording() {
+    const permission = await requestRecordingPermissionsAsync();
+    if (!permission.granted) {
+      setShowMicPermissionDialog(true);
+      return;
+    }
+    await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+    await recorder.prepareToRecordAsync();
+    recorder.record();
+    setIsRecording(true);
+  }
+
+  async function handleStopRecording() {
+    setIsRecording(false);
+    await recorder.stop();
+    const uri = recorder.uri;
+    if (!uri) return;
+    setIsTranscribing(true);
+    try {
+      const text = await transcribeAudio(uri);
+      setDraft((current) => (current ? `${current} ${text}`.trim() : text.trim()));
+    } catch (error) {
+      console.error('Failed to transcribe audio:', error);
+    } finally {
+      setIsTranscribing(false);
+    }
+  }
+
+  async function handleCancelRecording() {
+    setIsRecording(false);
+    await recorder.stop();
   }
 
   function handleCopyMessage() {
@@ -525,6 +611,11 @@ export default function ChatScreen() {
               onChangeDraft={setDraft}
               onSend={handleSend}
               bottomPadding={insets.bottom}
+              isRecording={isRecording}
+              isTranscribing={isTranscribing}
+              onStartRecording={handleStartRecording}
+              onStopRecording={handleStopRecording}
+              onCancelRecording={handleCancelRecording}
             />
           </View>
         </View>
@@ -548,6 +639,11 @@ export default function ChatScreen() {
               onChangeDraft={setDraft}
               onSend={handleSend}
               bottomPadding={insets.bottom}
+              isRecording={isRecording}
+              isTranscribing={isTranscribing}
+              onStartRecording={handleStartRecording}
+              onStopRecording={handleStopRecording}
+              onCancelRecording={handleCancelRecording}
             />
           </View>
         </View>
@@ -558,6 +654,14 @@ export default function ChatScreen() {
         onModify={handleStartEdit}
         onCopy={handleCopyMessage}
         onDismiss={() => setPopoverFor(null)}
+      />
+
+      <AppDialog
+        visible={showMicPermissionDialog}
+        title={t('chatMicPermissionTitle')}
+        message={t('chatMicPermissionMessage')}
+        primaryAction={{ label: t('settingsOk'), onPress: () => setShowMicPermissionDialog(false) }}
+        onRequestClose={() => setShowMicPermissionDialog(false)}
       />
     </SafeAreaView>
   );
@@ -789,6 +893,37 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     backgroundColor: Brand.green,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sendButtonDisabled: {
+    opacity: 0.6,
+  },
+  recordingIndicator: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    backgroundColor: Brand.chatInput,
+    borderRadius: 999,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.three,
+  },
+  recordingDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: Brand.red,
+  },
+  recordingText: {
+    color: Brand.white,
+    fontSize: 14,
+    fontFamily: Fonts.regular,
+  },
+  recordingCancelButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -7,6 +7,7 @@ import { chatRouter } from './routes/chat.js';
 import { feedbackRouter } from './routes/feedback.js';
 import { promptsRouter } from './routes/prompts.js';
 import { releasesRouter } from './routes/releases.js';
+import { transcribeRouter } from './routes/transcribe.js';
 
 const app = express();
 app.use(cors());
@@ -25,6 +26,7 @@ app.use('/api', authRouter);
 app.use('/api', promptsRouter);
 app.use('/api', releasesRouter);
 app.use('/api', feedbackRouter);
+app.use('/api', transcribeRouter);
 app.use(adminRouter);
 
 // Catch-all error handler: anything asyncHandler passes to next(err) lands
