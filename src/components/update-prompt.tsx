@@ -1,4 +1,5 @@
 import { Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Brand, Fonts, Spacing } from '@/constants/theme';
 import type { PendingUpdate } from '@/lib/update-check';
@@ -9,10 +10,12 @@ type UpdatePromptProps = {
 };
 
 export function UpdatePrompt({ update, onDismiss }: UpdatePromptProps) {
+  const insets = useSafeAreaInsets();
+
   return (
     <Modal visible transparent animationType="slide" onRequestClose={update.mandatory ? undefined : onDismiss}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: Spacing.five + insets.bottom }]}>
           <Text style={styles.title}>Nouvelle version disponible</Text>
           <Text style={styles.version}>Version {update.version}</Text>
           {update.notes ? <Text style={styles.notes}>{update.notes}</Text> : null}
@@ -44,7 +47,8 @@ const styles = StyleSheet.create({
     backgroundColor: Brand.cream,
     borderTopLeftRadius: Spacing.five,
     borderTopRightRadius: Spacing.five,
-    padding: Spacing.five,
+    paddingTop: Spacing.five,
+    paddingHorizontal: Spacing.five,
     gap: Spacing.two,
   },
   title: {

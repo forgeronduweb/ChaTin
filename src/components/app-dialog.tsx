@@ -1,4 +1,5 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Brand, Fonts, Spacing } from '@/constants/theme';
 
@@ -21,10 +22,12 @@ type AppDialogProps = {
 // the native Alert.alert for anything the user actually sees rendered
 // on-screen (confirmations, update-check results).
 export function AppDialog({ visible, title, message, primaryAction, secondaryAction, onRequestClose }: AppDialogProps) {
+  const insets = useSafeAreaInsets();
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onRequestClose}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: Spacing.five + insets.bottom }]}>
           <Text style={styles.title}>{title}</Text>
           {message ? <Text style={styles.message}>{message}</Text> : null}
 
@@ -61,7 +64,8 @@ const styles = StyleSheet.create({
     backgroundColor: Brand.cream,
     borderTopLeftRadius: Spacing.five,
     borderTopRightRadius: Spacing.five,
-    padding: Spacing.five,
+    paddingTop: Spacing.five,
+    paddingHorizontal: Spacing.five,
     gap: Spacing.two,
   },
   title: {
