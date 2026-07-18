@@ -534,11 +534,13 @@ export default function ChatScreen() {
 
           <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
             <View style={styles.emptyCenter}>
-              <Image
-                source={require('@/assets/images/flower_only_1024.png')}
-                style={styles.emptyLogo}
-                resizeMode="contain"
-              />
+              <View style={styles.emptyLogoBadge}>
+                <Image
+                  source={require('@/assets/images/flower_only_1024.png')}
+                  style={styles.emptyLogo}
+                  resizeMode="contain"
+                />
+              </View>
             </View>
 
             <ChatInputBar
@@ -623,9 +625,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  emptyLogoBadge: {
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: Brand.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   emptyLogo: {
-    width: 96,
-    height: 96,
+    width: 88,
+    height: 88,
   },
   messages: {
     paddingHorizontal: Spacing.four,
