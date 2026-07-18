@@ -19,6 +19,8 @@ export type ChatMessage = {
   id: string;
   from: 'me' | 'bot';
   text: string;
+  attachmentName?: string | null;
+  reaction?: 'like' | 'dislike' | null;
 };
 
 export type Conversation = {
@@ -114,4 +116,43 @@ export function sendMessage(
     body: JSON.stringify({ text }),
     signal,
   });
+}
+
+export function setMessageReaction(
+  conversationId: string,
+  messageId: string,
+  reaction: 'like' | 'dislike' | null,
+): Promise<ChatMessage> {
+  return request(`/api/conversations/${conversationId}/messages/${messageId}/reaction`, {
+    method: 'PATCH',
+    body: JSON.stringify({ reaction }),
+  });
+}
+
+export type PickedFile = {
+  uri: string;
+  name: string;
+};
+
+export async function sendMessageWithFile(
+  conversationId: string,
+  text: string,
+  file: PickedFile,
+  signal?: AbortSignal,
+): Promise<{ reply: ChatMessage; messages: ChatMessage[] }> {
+  const session = await getSession();
+  const formData = new FormData();
+  formData.append('text', text);
+  formData.append('file', new File(file.uri), file.name);
+
+  const response = await expoFetch(`${BASE_URL}/api/conversations/${conversationId}/messages`, {
+    method: 'POST',
+    headers: session ? { Authorization: `Bearer ${session.token}` } : undefined,
+    body: formData,
+    signal,
+  });
+  if (!response.ok) {
+    throw new Error(`Request to /api/conversations/${conversationId}/messages failed with status ${response.status}`);
+  }
+  return response.json() as Promise<{ reply: ChatMessage; messages: ChatMessage[] }>;
 }

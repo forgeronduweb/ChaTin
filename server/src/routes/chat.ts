@@ -1,10 +1,14 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { generateReply } from '../ai.js';
 import { asyncHandler } from '../async-handler.js';
-import { addMessage, createConversation, getConversation, listConversations } from '../store.js';
+import { extractFileText, SUPPORTED_ATTACHMENT_TYPES } from '../file-extraction.js';
+import { addMessage, createConversation, getConversation, listConversations, setMessageReaction } from '../store.js';
 import { getUserByToken } from '../users-store.js';
 
 export const chatRouter = Router();
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 async function resolveUserId(req: { headers: { authorization?: string } }): Promise<string | undefined> {
   const header = req.headers.authorization;
@@ -51,6 +55,7 @@ chatRouter.get(
 
 chatRouter.post(
   '/conversations/:id/messages',
+  upload.single('file'),
   asyncHandler(async (req, res) => {
     const conversation = await getConversation(req.params.id);
     if (!conversation) {
@@ -59,21 +64,68 @@ chatRouter.post(
     }
 
     const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
-    if (!text) {
+    const file = req.file;
+    if (!text && !file) {
       res.status(400).json({ error: 'text is required' });
       return;
     }
+    if (file && !SUPPORTED_ATTACHMENT_TYPES.has(file.mimetype)) {
+      res.status(400).json({ error: 'Unsupported file type. Use PDF, .docx, .xlsx or .xls.' });
+      return;
+    }
 
-    const userMessage = await addMessage(conversation.id, { from: 'me', text });
+    let attachmentText: string | null = null;
+    if (file) {
+      try {
+        attachmentText = await extractFileText(file.buffer, file.mimetype, file.originalname);
+      } catch (error) {
+        console.error('File extraction failed:', error);
+        res.status(422).json({ error: 'Could not read the attached file' });
+        return;
+      }
+    }
+
+    const userMessage = await addMessage(conversation.id, {
+      from: 'me',
+      text,
+      attachmentName: file?.originalname ?? null,
+    });
     const history = [...conversation.messages, userMessage];
 
+    // The stored/displayed message keeps just what the user typed - this
+    // enriched copy (used for this AI call only) is what actually carries
+    // the file's content, so ai.ts/gemini.ts/groq.ts need no changes.
+    const historyForAI = attachmentText
+      ? [
+          ...history.slice(0, -1),
+          { ...userMessage, text: `[Fichier joint: ${file?.originalname}]\n${attachmentText}\n\n${text}`.trim() },
+        ]
+      : history;
+
     try {
-      const replyText = await generateReply(history);
+      const replyText = await generateReply(historyForAI);
       const reply = await addMessage(conversation.id, { from: 'bot', text: replyText });
       res.status(201).json({ reply, messages: [...history, reply] });
     } catch (error) {
       console.error('AI provider error:', error);
       res.status(502).json({ error: 'Failed to generate a reply' });
     }
+  }),
+);
+
+chatRouter.patch(
+  '/conversations/:conversationId/messages/:messageId/reaction',
+  asyncHandler(async (req, res) => {
+    const reaction = req.body?.reaction;
+    if (reaction !== 'like' && reaction !== 'dislike' && reaction !== null) {
+      res.status(400).json({ error: 'reaction must be "like", "dislike", or null' });
+      return;
+    }
+    const message = await setMessageReaction(req.params.messageId, reaction);
+    if (!message) {
+      res.status(404).json({ error: 'Message not found' });
+      return;
+    }
+    res.json(message);
   }),
 );

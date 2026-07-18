@@ -143,9 +143,19 @@ export const DASHBOARD_HTML = `<!doctype html>
   .modal-actions { display: flex; justify-content: flex-end; gap: 14px; margin-top: 24px; }
 
   .msg-list { display: flex; flex-direction: column; gap: 10px; max-height: 50vh; overflow-y: auto; }
+  .msg-wrap { display: flex; flex-direction: column; gap: 4px; max-width: 85%; }
+  .msg-wrap.msg-wrap-me { align-self: flex-end; align-items: flex-end; }
   .msg-bubble { padding: 10px 14px; border-radius: 14px; font-size: 13.5px; line-height: 1.4; }
-  .msg-me { background: var(--white); align-self: flex-end; max-width: 85%; border: 1px solid var(--border); }
-  .msg-bot { background: var(--paper); max-width: 85%; }
+  .msg-me { background: var(--white); border: 1px solid var(--border); }
+  .msg-bot { background: var(--paper); }
+  .msg-attachment {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600;
+    color: var(--ink-muted); background: var(--cream); border: 1px solid var(--border);
+    border-radius: 999px; padding: 3px 10px;
+  }
+  .msg-reaction { font-size: 12px; font-weight: 700; }
+  .msg-reaction-like { color: var(--green); }
+  .msg-reaction-dislike { color: var(--red); }
 </style>
 </head>
 <body>
@@ -544,8 +554,13 @@ export const DASHBOARD_HTML = `<!doctype html>
       const res = await fetch('/admin/api/conversations/' + id);
       const conv = await res.json();
       document.getElementById('conv-modal-title').textContent = conv.title;
-      document.getElementById('conv-modal-messages').innerHTML = conv.messages.map((m) =>
-        \`<div class="msg-bubble \${m.from === 'me' ? 'msg-me' : 'msg-bot'}">\${escapeHtml(m.text)}</div>\`
+      document.getElementById('conv-modal-messages').innerHTML = conv.messages.map((m) => \`
+        <div class="msg-wrap \${m.from === 'me' ? 'msg-wrap-me' : ''}">
+          \${m.attachmentName ? \`<span class="msg-attachment">📎 \${escapeHtml(m.attachmentName)}</span>\` : ''}
+          <div class="msg-bubble \${m.from === 'me' ? 'msg-me' : 'msg-bot'}">\${escapeHtml(m.text)}</div>
+          \${m.reaction === 'like' ? '<span class="msg-reaction msg-reaction-like">👍 Aimé</span>' : ''}
+          \${m.reaction === 'dislike' ? '<span class="msg-reaction msg-reaction-dislike">👎 Pas aimé</span>' : ''}
+        </div>\`
       ).join('') || '<p class="muted">Aucun message.</p>';
       openModal('conv-modal');
     }

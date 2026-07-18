@@ -6,6 +6,8 @@ export type ChatMessage = {
   id: string;
   from: 'me' | 'bot';
   text: string;
+  attachmentName?: string | null;
+  reaction?: 'like' | 'dislike' | null;
 };
 
 export type Conversation = {
@@ -16,7 +18,13 @@ export type Conversation = {
 };
 
 function toChatMessage(row: typeof messages.$inferSelect): ChatMessage {
-  return { id: row.id, from: row.from as 'me' | 'bot', text: row.text };
+  return {
+    id: row.id,
+    from: row.from as 'me' | 'bot',
+    text: row.text,
+    attachmentName: row.attachmentName,
+    reaction: row.reaction as 'like' | 'dislike' | null,
+  };
 }
 
 export async function createConversation(
@@ -57,9 +65,23 @@ export async function getConversation(id: string): Promise<Conversation | undefi
   };
 }
 
-export async function addMessage(conversationId: string, message: { from: 'me' | 'bot'; text: string }): Promise<ChatMessage> {
-  const [row] = await db.insert(messages).values({ conversationId, from: message.from, text: message.text }).returning();
+export async function addMessage(
+  conversationId: string,
+  message: { from: 'me' | 'bot'; text: string; attachmentName?: string | null },
+): Promise<ChatMessage> {
+  const [row] = await db
+    .insert(messages)
+    .values({ conversationId, from: message.from, text: message.text, attachmentName: message.attachmentName })
+    .returning();
   return toChatMessage(row);
+}
+
+export async function setMessageReaction(
+  messageId: string,
+  reaction: 'like' | 'dislike' | null,
+): Promise<ChatMessage | undefined> {
+  const [row] = await db.update(messages).set({ reaction }).where(eq(messages.id, messageId)).returning();
+  return row ? toChatMessage(row) : undefined;
 }
 
 export async function listConversations(userId?: string): Promise<Pick<Conversation, 'id' | 'title'>[]> {

@@ -35,6 +35,8 @@ export const messages = pgTable('messages', {
     .references(() => conversations.id, { onDelete: 'cascade' }),
   from: text('from', { enum: ['me', 'bot'] }).notNull(),
   text: text('text').notNull(),
+  attachmentName: text('attachment_name'),
+  reaction: text('reaction', { enum: ['like', 'dislike'] }),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 

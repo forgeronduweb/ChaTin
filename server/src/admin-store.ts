@@ -131,7 +131,14 @@ export async function getConversationDetail(id: string) {
   if (!conversation) return undefined;
 
   const rows = await db
-    .select({ id: messages.id, from: messages.from, text: messages.text, createdAt: messages.createdAt })
+    .select({
+      id: messages.id,
+      from: messages.from,
+      text: messages.text,
+      attachmentName: messages.attachmentName,
+      reaction: messages.reaction,
+      createdAt: messages.createdAt,
+    })
     .from(messages)
     .where(eq(messages.conversationId, id))
     .orderBy(messages.createdAt);
