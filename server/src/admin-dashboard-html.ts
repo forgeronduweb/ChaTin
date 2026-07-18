@@ -692,7 +692,7 @@ export const DASHBOARD_HTML = `<!doctype html>
           alert(
             "La mise à jour a bien été publiée pour l'app (les utilisateurs seront notifiés), " +
             "mais l'envoi vers GitHub Releases a échoué : le bouton de téléchargement de la landing page " +
-            "ne pointera pas vers cette version.\n\nDétail : " + release.githubError,
+            "ne pointera pas vers cette version.\\n\\nDétail : " + release.githubError,
           );
         }
       } catch {
