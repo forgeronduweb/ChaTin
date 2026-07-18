@@ -74,6 +74,13 @@ export function getLatestRelease(): Promise<AppRelease> {
   return request<AppRelease>('/api/app-version/latest');
 }
 
+export function submitFeedback(message: string, appVersion?: string): Promise<void> {
+  return request('/api/feedback', {
+    method: 'POST',
+    body: JSON.stringify({ message, appVersion }),
+  });
+}
+
 export function sendMessage(
   conversationId: string,
   text: string,

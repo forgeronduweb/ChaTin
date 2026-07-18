@@ -1,6 +1,6 @@
 import { and, count, desc, eq, gte, ilike, max, sql } from 'drizzle-orm';
 import { db } from './db/client.js';
-import { appReleases, conversations, messages, prompts, sessions, users } from './db/schema.js';
+import { appReleases, conversations, feedback, messages, prompts, sessions, users } from './db/schema.js';
 
 function startOfToday(): Date {
   const d = new Date();
@@ -169,6 +169,38 @@ export async function updatePrompt(id: string, input: Partial<PromptInput>) {
 
 export async function deletePrompt(id: string): Promise<boolean> {
   const deleted = await db.delete(prompts).where(eq(prompts.id, id)).returning({ id: prompts.id });
+  return deleted.length > 0;
+}
+
+export async function listFeedback() {
+  const rows = await db
+    .select({
+      id: feedback.id,
+      message: feedback.message,
+      appVersion: feedback.appVersion,
+      createdAt: feedback.createdAt,
+      userName: users.name,
+      userEmail: users.email,
+    })
+    .from(feedback)
+    .leftJoin(users, eq(users.id, feedback.userId))
+    .orderBy(desc(feedback.createdAt));
+  return rows;
+}
+
+export type FeedbackInput = {
+  userId?: string;
+  message: string;
+  appVersion?: string;
+};
+
+export async function createFeedback(input: FeedbackInput) {
+  const [row] = await db.insert(feedback).values(input).returning();
+  return row;
+}
+
+export async function deleteFeedback(id: string): Promise<boolean> {
+  const deleted = await db.delete(feedback).where(eq(feedback.id, id)).returning({ id: feedback.id });
   return deleted.length > 0;
 }
 

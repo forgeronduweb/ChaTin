@@ -49,6 +49,14 @@ export const prompts = pgTable('prompts', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
+export const feedback = pgTable('feedback', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  message: text('message').notNull(),
+  appVersion: text('app_version'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
 export const appReleases = pgTable('app_releases', {
   id: uuid('id').primaryKey().defaultRandom(),
   version: text('version').notNull(),

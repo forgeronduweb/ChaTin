@@ -2,8 +2,10 @@ import { router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInUp } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AnimatedPressable } from '@/components/animated-pressable';
 import { GraphPaperBackground } from '@/components/graph-paper-background';
 import { UpdatePrompt } from '@/components/update-prompt';
 import { Brand, Fonts, Spacing } from '@/constants/theme';
@@ -67,9 +69,7 @@ export default function HomeScreen() {
 
           <Text style={styles.title}>{t('homeTitle')}</Text>
 
-          <Pressable
-            onPress={() => router.push('/chat')}
-            style={({ pressed }) => [styles.newChat, pressed && styles.pressed]}>
+          <AnimatedPressable onPress={() => router.push('/chat')} style={styles.newChat}>
             <Text style={styles.newChatText}>{t('homeNewChat')}</Text>
             <View style={styles.newChatArrow}>
               <SymbolView
@@ -78,7 +78,7 @@ export default function HomeScreen() {
                 size={16}
               />
             </View>
-          </Pressable>
+          </AnimatedPressable>
 
           {historyPreview.length > 0 && (
             <View>
@@ -90,17 +90,18 @@ export default function HomeScreen() {
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.tagRow}>
-                {historyPreview.map((conversation) => (
-                  <Pressable
-                    key={conversation.id}
-                    onPress={() => router.push({ pathname: '/chat', params: { id: conversation.id } })}
-                    style={({ pressed }) => pressed && styles.pressed}>
-                    <View style={styles.tag}>
-                      <Text style={styles.tagText} numberOfLines={1}>
-                        {conversation.title}
-                      </Text>
-                    </View>
-                  </Pressable>
+                {historyPreview.map((conversation, index) => (
+                  <Animated.View key={conversation.id} entering={FadeInUp.duration(300).delay(index * 60)}>
+                    <Pressable
+                      onPress={() => router.push({ pathname: '/chat', params: { id: conversation.id } })}
+                      style={({ pressed }) => pressed && styles.pressed}>
+                      <View style={styles.tag}>
+                        <Text style={styles.tagText} numberOfLines={1}>
+                          {conversation.title}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  </Animated.View>
                 ))}
               </ScrollView>
             </View>
@@ -113,20 +114,23 @@ export default function HomeScreen() {
             <SeeAllLink onPress={() => router.push('/prompts')} />
           </View>
           <View style={styles.promptRow}>
-            {featuredPrompts.map((prompt) => (
-              <View key={prompt.id} style={[styles.promptCard, { backgroundColor: prompt.color }]}>
+            {featuredPrompts.map((prompt, index) => (
+              <Animated.View
+                key={prompt.id}
+                entering={FadeInUp.duration(320).delay(index * 80)}
+                style={[styles.promptCard, { backgroundColor: prompt.color }]}>
                 <View style={styles.promptCardBody}>
                   <Text style={styles.promptTitle} numberOfLines={3} ellipsizeMode="tail">
                     {prompt.title}
                   </Text>
                   <Text style={styles.promptAuthor}>{t('homeGeneratedBy', { author: prompt.author })}</Text>
                 </View>
-                <Pressable
+                <AnimatedPressable
                   onPress={() => router.push({ pathname: '/chat', params: { title: prompt.title } })}
-                  style={({ pressed }) => [styles.promptButton, pressed && styles.pressed]}>
+                  style={styles.promptButton}>
                   <Text style={styles.promptButtonText}>{t('homeUsePrompt')}</Text>
-                </Pressable>
-              </View>
+                </AnimatedPressable>
+              </Animated.View>
             ))}
           </View>
         </View>

@@ -20,6 +20,9 @@ const en = {
   chatNewChatTitle: 'New chat',
   chatServerError: "Sorry, I couldn't reach the server. Is it running?",
   chatStopGenerating: 'Stop generate',
+  chatEditMessage: 'Edit',
+  chatCopyMessage: 'Copy',
+  chatMessageCopied: 'Copied!',
 
   loginTitle: 'Sign in to ChaTin',
   loginSubtitle:
@@ -42,12 +45,40 @@ const en = {
   settingsSignOutConfirmTitle: 'Sign out?',
   settingsSignOutConfirmMessage: "You'll need to sign in again to sync your conversations.",
   settingsCancel: 'Cancel',
+  settingsOk: 'OK',
   settingsNotSignedIn: "You're not signed in",
   settingsNotSignedInSubtitle: 'Sign in to sync your conversations across devices.',
   settingsSignIn: 'Sign in',
   settingsGeneral: 'General',
   settingsLanguage: 'Language',
   settingsVersion: 'Version',
+
+  settingsFeedback: 'Help us improve',
+  settingsFeedbackPlaceholder: 'A suggestion, a bug to report...',
+  settingsFeedbackSend: 'Send',
+  settingsFeedbackSending: 'Sending...',
+  settingsFeedbackSuccess: 'Thanks for your feedback!',
+  settingsFeedbackError: "Couldn't send your feedback. Try again later.",
+  settingsFeedbackEmpty: 'Write a message before sending.',
+
+  settingsOther: 'Other',
+  settingsShareApp: 'Share the app',
+  settingsShareMessage: 'Check out ChaTin, a free AI chatbot: {url}',
+  settingsCheckUpdate: 'Check for updates',
+  settingsCheckUpdateUpToDateTitle: 'Up to date',
+  settingsCheckUpdateUpToDateMessage: "You're already using the latest version of ChaTin.",
+  settingsCheckUpdateErrorTitle: 'Error',
+  settingsCheckUpdateErrorMessage: "Couldn't check for updates. Try again later.",
+  settingsClearHistory: 'Clear local history',
+  settingsClearHistoryConfirmTitle: 'Clear history?',
+  settingsClearHistoryConfirmMessage: 'All conversations stored on this device will be permanently deleted.',
+  settingsClearHistoryConfirmButton: 'Clear',
+  settingsClearHistoryDone: 'History cleared.',
+
+  settingsAbout: 'About',
+  settingsAboutTagline: 'The free AI chatbot that speaks French and English.',
+  settingsAboutCredit: 'Built with Expo & React Native, by Evrard Baho',
+  settingsAboutWebsite: 'Website',
 };
 
 const fr: Record<keyof typeof en, string> = {
@@ -70,6 +101,9 @@ const fr: Record<keyof typeof en, string> = {
   chatNewChatTitle: 'Nouvelle discussion',
   chatServerError: 'Désolé, impossible de contacter le serveur. Est-il démarré ?',
   chatStopGenerating: 'Arrêter la génération',
+  chatEditMessage: 'Modifier',
+  chatCopyMessage: 'Copier',
+  chatMessageCopied: 'Copié !',
 
   loginTitle: 'Connecte-toi à ChaTin',
   loginSubtitle:
@@ -93,12 +127,41 @@ const fr: Record<keyof typeof en, string> = {
   settingsSignOutConfirmTitle: 'Se déconnecter ?',
   settingsSignOutConfirmMessage: 'Tu devras te reconnecter pour synchroniser tes conversations.',
   settingsCancel: 'Annuler',
+  settingsOk: 'OK',
   settingsNotSignedIn: "Tu n'es pas connecté",
   settingsNotSignedInSubtitle: 'Connecte-toi pour synchroniser tes conversations entre appareils.',
   settingsSignIn: 'Se connecter',
   settingsGeneral: 'Général',
   settingsLanguage: 'Langue',
   settingsVersion: 'Version',
+
+  settingsFeedback: 'Nous améliorer',
+  settingsFeedbackPlaceholder: 'Une suggestion, un bug à signaler...',
+  settingsFeedbackSend: 'Envoyer',
+  settingsFeedbackSending: 'Envoi...',
+  settingsFeedbackSuccess: 'Merci pour ton retour !',
+  settingsFeedbackError: "Impossible d'envoyer ton retour. Réessaie plus tard.",
+  settingsFeedbackEmpty: "Écris un message avant d'envoyer.",
+
+  settingsOther: 'Autres',
+  settingsShareApp: "Partager l'app",
+  settingsShareMessage: 'Découvre ChaTin, un chatbot IA gratuit : {url}',
+  settingsCheckUpdate: 'Vérifier les mises à jour',
+  settingsCheckUpdateUpToDateTitle: 'À jour',
+  settingsCheckUpdateUpToDateMessage: 'Tu utilises déjà la dernière version de ChaTin.',
+  settingsCheckUpdateErrorTitle: 'Erreur',
+  settingsCheckUpdateErrorMessage: 'Impossible de vérifier les mises à jour. Réessaie plus tard.',
+  settingsClearHistory: "Effacer l'historique local",
+  settingsClearHistoryConfirmTitle: "Effacer l'historique ?",
+  settingsClearHistoryConfirmMessage:
+    'Toutes tes conversations enregistrées sur cet appareil seront supprimées définitivement.',
+  settingsClearHistoryConfirmButton: 'Effacer',
+  settingsClearHistoryDone: 'Historique effacé.',
+
+  settingsAbout: 'À propos',
+  settingsAboutTagline: 'Le chatbot IA gratuit qui parle français et anglais.',
+  settingsAboutCredit: 'Construit avec Expo & React Native, par Evrard Baho',
+  settingsAboutWebsite: 'Site web',
 };
 
 const translations = { fr, en };

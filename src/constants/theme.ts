@@ -9,6 +9,7 @@ export const Brand = {
   yellow: '#F6C445',
   pink: '#F3A7C7',
   green: '#3FBE7A',
+  red: '#E0555A',
   white: '#FFFFFF',
   chatBackground: '#151515',
   chatBubble: '#242424',

@@ -1,19 +1,35 @@
+import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import { router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppDialog, type AppDialogAction } from '@/components/app-dialog';
 import { GraphPaperBackground } from '@/components/graph-paper-background';
+import { UpdatePrompt } from '@/components/update-prompt';
 import { Brand, Fonts, Spacing } from '@/constants/theme';
+import { getLatestRelease } from '@/lib/api';
 import { type AuthUser, clearSession, getSession } from '@/lib/auth';
+import { clearStoredConversations } from '@/lib/conversations-store';
 import { locale, t } from '@/lib/i18n';
+import type { PendingUpdate } from '@/lib/update-check';
 
 const LANGUAGE_LABELS: Record<typeof locale, string> = {
   fr: 'Français',
   en: 'English',
 };
+
+const WEBSITE_URL = 'https://forgeronduweb.github.io/ChaTin/';
+
+type DialogState =
+  | { type: 'signOutConfirm' }
+  | { type: 'clearHistoryConfirm' }
+  | { type: 'clearHistoryDone' }
+  | { type: 'updateUpToDate' }
+  | { type: 'updateError' }
+  | null;
 
 function initialsFor(name: string) {
   return name
@@ -26,6 +42,9 @@ function initialsFor(name: string) {
 
 export default function SettingsScreen() {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [manualUpdate, setManualUpdate] = useState<PendingUpdate | null>(null);
+  const [dialog, setDialog] = useState<DialogState>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -33,17 +52,84 @@ export default function SettingsScreen() {
     }, []),
   );
 
-  function handleSignOut() {
-    Alert.alert(t('settingsSignOutConfirmTitle'), t('settingsSignOutConfirmMessage'), [
-      { text: t('settingsCancel'), style: 'cancel' },
-      {
-        text: t('settingsSignOut'),
-        style: 'destructive',
+  function closeDialog() {
+    setDialog(null);
+  }
+
+  function handleShareApp() {
+    void Share.share({ message: t('settingsShareMessage', { url: WEBSITE_URL }) });
+  }
+
+  async function handleCheckUpdate() {
+    setCheckingUpdate(true);
+    try {
+      const release = await getLatestRelease();
+      const installedCode = Number(Application.nativeBuildVersion ?? '0');
+      if (release.versionCode > installedCode) {
+        setManualUpdate(release);
+      } else {
+        setDialog({ type: 'updateUpToDate' });
+      }
+    } catch (error) {
+      // No release has ever been published from the admin dashboard yet -
+      // that's not a failure, there's just nothing to compare against.
+      if (error instanceof Error && error.message.includes('404')) {
+        setDialog({ type: 'updateUpToDate' });
+        return;
+      }
+      console.error('Failed to check for updates:', error);
+      setDialog({ type: 'updateError' });
+    } finally {
+      setCheckingUpdate(false);
+    }
+  }
+
+  let dialogTitle = '';
+  let dialogMessage: string | undefined;
+  let dialogPrimary: AppDialogAction = { label: t('settingsOk'), onPress: closeDialog };
+  let dialogSecondary: AppDialogAction | undefined;
+
+  switch (dialog?.type) {
+    case 'signOutConfirm':
+      dialogTitle = t('settingsSignOutConfirmTitle');
+      dialogMessage = t('settingsSignOutConfirmMessage');
+      dialogPrimary = {
+        label: t('settingsSignOut'),
+        destructive: true,
         onPress: () => {
           void clearSession().then(() => setUser(null));
+          closeDialog();
         },
-      },
-    ]);
+      };
+      dialogSecondary = { label: t('settingsCancel'), onPress: closeDialog };
+      break;
+    case 'clearHistoryConfirm':
+      dialogTitle = t('settingsClearHistoryConfirmTitle');
+      dialogMessage = t('settingsClearHistoryConfirmMessage');
+      dialogPrimary = {
+        label: t('settingsClearHistoryConfirmButton'),
+        destructive: true,
+        onPress: () => {
+          clearStoredConversations();
+          setDialog({ type: 'clearHistoryDone' });
+        },
+      };
+      dialogSecondary = { label: t('settingsCancel'), onPress: closeDialog };
+      break;
+    case 'clearHistoryDone':
+      dialogTitle = t('settingsClearHistoryDone');
+      dialogPrimary = { label: t('settingsOk'), onPress: closeDialog };
+      break;
+    case 'updateUpToDate':
+      dialogTitle = t('settingsCheckUpdateUpToDateTitle');
+      dialogMessage = t('settingsCheckUpdateUpToDateMessage');
+      dialogPrimary = { label: t('settingsOk'), onPress: closeDialog };
+      break;
+    case 'updateError':
+      dialogTitle = t('settingsCheckUpdateErrorTitle');
+      dialogMessage = t('settingsCheckUpdateErrorMessage');
+      dialogPrimary = { label: t('settingsOk'), onPress: closeDialog };
+      break;
   }
 
   return (
@@ -94,11 +180,9 @@ export default function SettingsScreen() {
           )}
 
           <Pressable
-            onPress={() => (user ? handleSignOut() : router.push('/login'))}
+            onPress={() => (user ? setDialog({ type: 'signOutConfirm' }) : router.push('/login'))}
             style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}>
-            <Text style={styles.actionButtonText}>
-              {user ? t('settingsSignOut') : t('settingsSignIn')}
-            </Text>
+            <Text style={styles.actionButtonText}>{user ? t('settingsSignOut') : t('settingsSignIn')}</Text>
           </Pressable>
         </View>
 
@@ -109,13 +193,78 @@ export default function SettingsScreen() {
             <Text style={styles.rowLabel}>{t('settingsLanguage')}</Text>
             <Text style={styles.rowValue}>{LANGUAGE_LABELS[locale]}</Text>
           </View>
+        </View>
 
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>{t('settingsVersion')}</Text>
-            <Text style={styles.rowValue}>{Constants.expoConfig?.version ?? '—'}</Text>
+        <View style={styles.generalSection}>
+          <Text style={styles.sectionTitle}>{t('settingsOther')}</Text>
+
+          <Pressable onPress={() => router.push('/feedback')} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+            <Text style={styles.rowLabel}>{t('settingsFeedback')}</Text>
+            <SymbolView
+              tintColor={Brand.textMuted}
+              name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
+              size={16}
+            />
+          </Pressable>
+
+          <Pressable onPress={handleShareApp} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+            <Text style={styles.rowLabel}>{t('settingsShareApp')}</Text>
+            <SymbolView
+              tintColor={Brand.textMuted}
+              name={{ ios: 'square.and.arrow.up', android: 'share', web: 'share' }}
+              size={16}
+            />
+          </Pressable>
+
+          <Pressable
+            onPress={handleCheckUpdate}
+            disabled={checkingUpdate}
+            style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+            <Text style={styles.rowLabel}>{t('settingsCheckUpdate')}</Text>
+            <SymbolView
+              tintColor={Brand.textMuted}
+              name={{ ios: 'arrow.triangle.2.circlepath', android: 'refresh', web: 'refresh' }}
+              size={16}
+            />
+          </Pressable>
+
+          <Pressable
+            onPress={() => setDialog({ type: 'clearHistoryConfirm' })}
+            style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+            <Text style={[styles.rowLabel, styles.destructiveLabel]}>{t('settingsClearHistory')}</Text>
+            <SymbolView tintColor={Brand.red} name={{ ios: 'trash', android: 'delete', web: 'delete' }} size={16} />
+          </Pressable>
+        </View>
+
+        <View>
+          <Text style={styles.sectionTitle}>{t('settingsAbout')}</Text>
+          <View style={styles.aboutCard}>
+            <Text style={styles.aboutAppName}>ChaTin</Text>
+            <Text style={styles.aboutTagline}>{t('settingsAboutTagline')}</Text>
+            <Text style={styles.aboutCredit}>{t('settingsAboutCredit')}</Text>
+            <Pressable
+              onPress={() => Linking.openURL(WEBSITE_URL)}
+              style={({ pressed }) => pressed && styles.pressed}>
+              <Text style={styles.aboutLink}>{t('settingsAboutWebsite')}</Text>
+            </Pressable>
           </View>
         </View>
+
+        <Text style={styles.versionFooter}>
+          {t('settingsVersion')} {Constants.expoConfig?.version ?? '—'}
+        </Text>
       </ScrollView>
+
+      {manualUpdate && <UpdatePrompt update={manualUpdate} onDismiss={() => setManualUpdate(null)} />}
+
+      <AppDialog
+        visible={dialog !== null}
+        title={dialogTitle}
+        message={dialogMessage}
+        primaryAction={dialogPrimary}
+        secondaryAction={dialogSecondary}
+        onRequestClose={closeDialog}
+      />
     </SafeAreaView>
   );
 }
@@ -243,6 +392,45 @@ const styles = StyleSheet.create({
     color: Brand.textMuted,
     fontSize: 14,
     fontFamily: Fonts.regular,
+  },
+  destructiveLabel: {
+    color: Brand.red,
+  },
+  aboutCard: {
+    backgroundColor: Brand.paper,
+    borderRadius: Spacing.four,
+    padding: Spacing.four,
+    gap: Spacing.one,
+  },
+  aboutAppName: {
+    color: Brand.ink,
+    fontSize: 20,
+    fontFamily: Fonts.bold,
+  },
+  aboutTagline: {
+    color: Brand.inkMuted,
+    fontSize: 14,
+    fontFamily: Fonts.regular,
+    lineHeight: 19,
+    marginBottom: Spacing.two,
+  },
+  aboutCredit: {
+    color: Brand.textMuted,
+    fontSize: 12,
+    fontFamily: Fonts.medium,
+  },
+  aboutLink: {
+    color: Brand.ink,
+    fontSize: 13,
+    fontFamily: Fonts.bold,
+    textDecorationLine: 'underline',
+    marginTop: Spacing.one,
+  },
+  versionFooter: {
+    color: Brand.textMuted,
+    fontSize: 12,
+    fontFamily: Fonts.medium,
+    textAlign: 'center',
   },
   pressed: {
     opacity: 0.8,

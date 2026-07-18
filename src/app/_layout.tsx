@@ -29,8 +29,8 @@ export default function RootLayout() {
   return (
     <>
       <AnimatedSplashOverlay />
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="login" options={{ presentation: 'modal' }} />
+      <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+        <Stack.Screen name="login" options={{ presentation: 'modal', animation: 'fade' }} />
       </Stack>
     </>
   );

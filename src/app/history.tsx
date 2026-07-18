@@ -2,6 +2,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInUp } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GraphPaperBackground } from '@/components/graph-paper-background';
@@ -42,18 +43,19 @@ export default function HistoryScreen() {
         {conversations.length === 0 ? (
           <Text style={styles.emptyText}>{t('historyEmpty')}</Text>
         ) : (
-          conversations.map((conversation) => (
-            <Pressable
-              key={conversation.id}
-              onPress={() => router.push({ pathname: '/chat', params: { id: conversation.id } })}
-              style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
-              <Text style={styles.rowText}>{conversation.title}</Text>
-              <SymbolView
-                tintColor={Brand.white}
-                name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
-                size={16}
-              />
-            </Pressable>
+          conversations.map((conversation, index) => (
+            <Animated.View key={conversation.id} entering={FadeInUp.duration(280).delay(index * 40)}>
+              <Pressable
+                onPress={() => router.push({ pathname: '/chat', params: { id: conversation.id } })}
+                style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+                <Text style={styles.rowText}>{conversation.title}</Text>
+                <SymbolView
+                  tintColor={Brand.white}
+                  name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
+                  size={16}
+                />
+              </Pressable>
+            </Animated.View>
           ))
         )}
       </ScrollView>

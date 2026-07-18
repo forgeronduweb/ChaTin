@@ -1,13 +1,24 @@
+import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useRef, useState } from 'react';
-import { Image, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+import { Image, Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import Animated, {
+  Easing,
+  FadeInUp,
+  FadeOut,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AnimatedPressable } from '@/components/animated-pressable';
 import { GraphPaperBackground } from '@/components/graph-paper-background';
 import { Brand, Fonts, Spacing } from '@/constants/theme';
-import { type ChatMessage, createConversation, sendMessage } from '@/lib/api';
+import { createConversation, sendMessage } from '@/lib/api';
+import { ensureChatSession, updateChatSession, useChatSession } from '@/lib/chat-session-store';
 import { createLocalConversationId, getStoredConversation, saveStoredConversation } from '@/lib/conversations-store';
 import { t } from '@/lib/i18n';
 
@@ -55,14 +66,55 @@ function ChatInputBar({
         onSubmitEditing={onSend}
         returnKeyType="send"
       />
-      <Pressable onPress={onSend} style={({ pressed }) => [styles.sendButton, pressed && styles.pressed]}>
+      <AnimatedPressable onPress={onSend} style={styles.sendButton}>
         <SymbolView
           tintColor={Brand.ink}
           name={{ ios: 'arrow.up', android: 'arrow_upward', web: 'arrow_upward' }}
           size={18}
         />
-      </Pressable>
+      </AnimatedPressable>
     </View>
+  );
+}
+
+function MessageActionPopover({
+  anchor,
+  onModify,
+  onCopy,
+  onDismiss,
+}: {
+  anchor: { y: number } | null;
+  onModify: () => void;
+  onCopy: () => void;
+  onDismiss: () => void;
+}) {
+  if (!anchor) return null;
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onDismiss}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onDismiss}>
+        <Animated.View
+          entering={FadeInUp.duration(140)}
+          style={[styles.popover, { top: anchor.y, right: Spacing.four }]}>
+          <Pressable
+            onPress={onModify}
+            style={({ pressed }) => [styles.popoverRow, pressed && styles.pressed]}>
+            <SymbolView tintColor={Brand.ink} name={{ ios: 'pencil', android: 'edit', web: 'edit' }} size={15} />
+            <Text style={styles.popoverRowText}>{t('chatEditMessage')}</Text>
+          </Pressable>
+          <View style={styles.popoverDivider} />
+          <Pressable
+            onPress={onCopy}
+            style={({ pressed }) => [styles.popoverRow, pressed && styles.pressed]}>
+            <SymbolView
+              tintColor={Brand.ink}
+              name={{ ios: 'doc.on.doc', android: 'content_copy', web: 'content_copy' }}
+              size={15}
+            />
+            <Text style={styles.popoverRowText}>{t('chatCopyMessage')}</Text>
+          </Pressable>
+        </Animated.View>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -70,16 +122,22 @@ export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const { id, title } = useLocalSearchParams<{ id?: string; title?: string }>();
   const [stored] = useState(() => (id ? getStoredConversation(id) : undefined));
-  const [messages, setMessages] = useState<ChatMessage[]>(stored?.messages ?? []);
-  const [conversationTitle, setConversationTitle] = useState<string | null>(stored?.title ?? title ?? null);
   const [draft, setDraft] = useState('');
   const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const [sending, setSending] = useState(false);
-  const conversationId = useRef<string | null>(null);
   const localId = useRef(stored?.id ?? id ?? createLocalConversationId());
-  const abortControllerRef = useRef<AbortController | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+  const session = useChatSession(localId.current, {
+    messages: stored?.messages ?? [],
+    title: stored?.title ?? title ?? null,
+  });
+  const { messages, sending } = session;
+  const conversationTitle = session.title;
   const hasMessages = messages.length > 0;
+  const [popoverFor, setPopoverFor] = useState<{ id: string; y: number } | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState('');
+  const [showCopiedToast, setShowCopiedToast] = useState(false);
+  const lastUserMessageId = [...messages].reverse().find((message) => message.from === 'me')?.id ?? null;
 
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', (event) => {
@@ -96,9 +154,13 @@ export default function ChatScreen() {
 
   useEffect(() => {
     let cancelled = false;
+    // A session that's already creating/holding a conversation (e.g. we
+    // navigated away mid-reply and came back) already has this - reusing it
+    // avoids spawning a duplicate server-side conversation on remount.
+    if (session.serverConversationId) return;
     createConversation(stored?.title ?? title, stored?.messages).then((conversation) => {
       if (cancelled) return;
-      conversationId.current = conversation.id;
+      updateChatSession(localId.current, { serverConversationId: conversation.id });
       if (!stored && title) {
         void submit(title);
       }
@@ -110,16 +172,29 @@ export default function ChatScreen() {
   }, []);
 
   async function submit(text: string) {
-    if (!conversationId.current) return;
-    const resolvedTitle = conversationTitle ?? text;
-    if (!conversationTitle) setConversationTitle(resolvedTitle);
-    setMessages((prev) => [...prev, { id: `${Date.now()}`, from: 'me', text }]);
-    setSending(true);
+    const current = ensureChatSession(localId.current, { messages: [], title: null });
+    if (!current.serverConversationId) return;
+    const resolvedTitle = current.title ?? text;
+    const messagesWithUser = [...current.messages, { id: `${Date.now()}`, from: 'me' as const, text }];
     const controller = new AbortController();
-    abortControllerRef.current = controller;
+    updateChatSession(localId.current, {
+      title: resolvedTitle,
+      messages: messagesWithUser,
+      sending: true,
+      abortController: controller,
+    });
+    // Save right away (not just once the reply lands) so the conversation
+    // already shows up in Historique even if the user leaves before the
+    // reply arrives - the reply keeps generating in the background either way.
+    saveStoredConversation({
+      id: localId.current,
+      title: resolvedTitle,
+      messages: messagesWithUser,
+      updatedAt: Date.now(),
+    });
     try {
-      const result = await sendMessage(conversationId.current, text, controller.signal);
-      setMessages(result.messages);
+      const result = await sendMessage(current.serverConversationId, text, controller.signal);
+      updateChatSession(localId.current, { messages: result.messages, sending: false, abortController: null });
       saveStoredConversation({
         id: localId.current,
         title: resolvedTitle,
@@ -129,14 +204,20 @@ export default function ChatScreen() {
     } catch (error) {
       if (!controller.signal.aborted) {
         console.error('Failed to send message:', error);
-        setMessages((prev) => [
-          ...prev,
-          { id: `${Date.now()}-error`, from: 'bot', text: t('chatServerError') },
-        ]);
+        const withError = [
+          ...messagesWithUser,
+          { id: `${Date.now()}-error`, from: 'bot' as const, text: t('chatServerError') },
+        ];
+        updateChatSession(localId.current, { messages: withError, sending: false, abortController: null });
+        saveStoredConversation({
+          id: localId.current,
+          title: resolvedTitle,
+          messages: withError,
+          updatedAt: Date.now(),
+        });
+      } else {
+        updateChatSession(localId.current, { sending: false, abortController: null });
       }
-    } finally {
-      setSending(false);
-      abortControllerRef.current = null;
     }
   }
 
@@ -149,7 +230,85 @@ export default function ChatScreen() {
   }
 
   function handleStopGenerating() {
-    abortControllerRef.current?.abort();
+    session.abortController?.abort();
+  }
+
+  function handleCopyMessage() {
+    const message = messages.find((item) => item.id === popoverFor?.id);
+    setPopoverFor(null);
+    if (!message) return;
+    void Clipboard.setStringAsync(message.text);
+    setShowCopiedToast(true);
+    setTimeout(() => setShowCopiedToast(false), 1600);
+  }
+
+  function handleStartEdit() {
+    const message = messages.find((item) => item.id === popoverFor?.id);
+    setPopoverFor(null);
+    if (!message) return;
+    setEditDraft(message.text);
+    setEditingMessageId(message.id);
+  }
+
+  function handleCancelEdit() {
+    setEditingMessageId(null);
+    setEditDraft('');
+  }
+
+  async function handleConfirmEdit() {
+    const text = editDraft.trim();
+    const messageId = editingMessageId;
+    setEditingMessageId(null);
+    if (!text || !messageId) return;
+    const current = ensureChatSession(localId.current, { messages: [], title: null });
+    if (!current.serverConversationId) return;
+    const index = current.messages.findIndex((item) => item.id === messageId);
+    if (index < 0) return;
+    const resolvedTitle = current.title ?? text;
+    // Replace the prompt in place and drop its old reply - the regenerated
+    // reply lands in that same spot rather than a new pair being appended.
+    const messagesWithEdit = [...current.messages.slice(0, index), { ...current.messages[index], text }];
+    const controller = new AbortController();
+    updateChatSession(localId.current, {
+      title: resolvedTitle,
+      messages: messagesWithEdit,
+      sending: true,
+      abortController: controller,
+    });
+    saveStoredConversation({
+      id: localId.current,
+      title: resolvedTitle,
+      messages: messagesWithEdit,
+      updatedAt: Date.now(),
+    });
+    try {
+      const result = await sendMessage(current.serverConversationId, text, controller.signal);
+      const finalMessages = [...messagesWithEdit, result.reply];
+      updateChatSession(localId.current, { messages: finalMessages, sending: false, abortController: null });
+      saveStoredConversation({
+        id: localId.current,
+        title: resolvedTitle,
+        messages: finalMessages,
+        updatedAt: Date.now(),
+      });
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        console.error('Failed to regenerate reply:', error);
+        const withError = [
+          ...messagesWithEdit,
+          { id: `${Date.now()}-error`, from: 'bot' as const, text: t('chatServerError') },
+        ];
+        updateChatSession(localId.current, { messages: withError, sending: false, abortController: null });
+        saveStoredConversation({
+          id: localId.current,
+          title: resolvedTitle,
+          messages: withError,
+          updatedAt: Date.now(),
+        });
+      } else {
+        updateChatSession(localId.current, { sending: false, abortController: null });
+      }
+    }
   }
 
   return (
@@ -208,7 +367,10 @@ export default function ChatScreen() {
                 onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}>
                 {messages.map((message) =>
                   message.from === 'bot' ? (
-                    <View key={message.id} style={styles.botMessageBlock}>
+                    <Animated.View
+                      key={message.id}
+                      entering={FadeInUp.duration(260).springify().damping(18)}
+                      style={styles.botMessageBlock}>
                       <View style={styles.botLabelRow}>
                         <Image
                           source={require('@/assets/images/flower_only_1024.png')}
@@ -220,23 +382,70 @@ export default function ChatScreen() {
                       <View style={styles.botBubble}>
                         <Text style={styles.botText}>{message.text}</Text>
                       </View>
-                    </View>
+                    </Animated.View>
                   ) : (
-                    <View key={message.id} style={styles.meMessageBlock}>
-                      <View style={styles.meBubble}>
-                        <Text style={styles.meText}>{message.text}</Text>
-                      </View>
+                    <Animated.View
+                      key={message.id}
+                      entering={FadeInUp.duration(220).springify().damping(18)}
+                      style={styles.meMessageBlock}>
+                      {editingMessageId === message.id ? (
+                        <View style={styles.meBubble}>
+                          <TextInput
+                            value={editDraft}
+                            onChangeText={setEditDraft}
+                            style={styles.meEditInput}
+                            multiline
+                            autoFocus
+                          />
+                          <View style={styles.editActionsRow}>
+                            <Pressable
+                              onPress={handleCancelEdit}
+                              style={({ pressed }) => [styles.editActionButton, pressed && styles.pressed]}>
+                              <SymbolView
+                                tintColor={Brand.textMuted}
+                                name={{ ios: 'xmark', android: 'close', web: 'close' }}
+                                size={13}
+                              />
+                            </Pressable>
+                            <Pressable
+                              onPress={handleConfirmEdit}
+                              style={({ pressed }) => [
+                                styles.editActionButton,
+                                styles.editActionButtonPrimary,
+                                pressed && styles.pressed,
+                              ]}>
+                              <SymbolView
+                                tintColor={Brand.white}
+                                name={{ ios: 'checkmark', android: 'check', web: 'check' }}
+                                size={13}
+                              />
+                            </Pressable>
+                          </View>
+                        </View>
+                      ) : (
+                        <Pressable
+                          onLongPress={
+                            message.id === lastUserMessageId && !sending
+                              ? (event) => setPopoverFor({ id: message.id, y: event.nativeEvent.pageY })
+                              : undefined
+                          }
+                          delayLongPress={350}>
+                          <View style={styles.meBubble}>
+                            <Text style={styles.meText}>{message.text}</Text>
+                          </View>
+                        </Pressable>
+                      )}
                       <View style={styles.meFooter}>
                         <View style={styles.meAvatar}>
                           <Text style={styles.meAvatarEmoji}>🙂</Text>
                         </View>
                         <Text style={styles.meLabel}>Me</Text>
                       </View>
-                    </View>
+                    </Animated.View>
                   ),
                 )}
                 {sending && (
-                  <View style={styles.botMessageBlock}>
+                  <Animated.View entering={FadeInUp.duration(220)} style={styles.botMessageBlock}>
                     <View style={styles.botLabelRow}>
                       <Image
                         source={require('@/assets/images/flower_only_1024.png')}
@@ -248,21 +457,29 @@ export default function ChatScreen() {
                     <View style={styles.loadingBubble}>
                       <SpinningFlower size={22} />
                     </View>
-                  </View>
+                  </Animated.View>
                 )}
               </ScrollView>
 
               <View style={styles.topFade} pointerEvents="none" />
 
+              {showCopiedToast && (
+                <Animated.View
+                  entering={FadeInUp.duration(180)}
+                  exiting={FadeOut.duration(180)}
+                  style={styles.copiedToast}
+                  pointerEvents="none">
+                  <Text style={styles.copiedToastText}>{t('chatMessageCopied')}</Text>
+                </Animated.View>
+              )}
+
               {sending && (
-                <View style={styles.stopButtonFloating}>
-                  <Pressable
-                    onPress={handleStopGenerating}
-                    style={({ pressed }) => [styles.stopButton, pressed && styles.pressed]}>
+                <Animated.View entering={FadeInUp.duration(200)} style={styles.stopButtonFloating}>
+                  <AnimatedPressable onPress={handleStopGenerating} style={styles.stopButton}>
                     <View style={styles.stopDot} />
                     <Text style={styles.stopButtonText}>{t('chatStopGenerating')}</Text>
-                  </Pressable>
-                </View>
+                  </AnimatedPressable>
+                </Animated.View>
               )}
             </View>
 
@@ -296,6 +513,13 @@ export default function ChatScreen() {
           </View>
         </View>
       )}
+
+      <MessageActionPopover
+        anchor={popoverFor}
+        onModify={handleStartEdit}
+        onCopy={handleCopyMessage}
+        onDismiss={() => setPopoverFor(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -514,5 +738,76 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.8,
+  },
+  copiedToast: {
+    position: 'absolute',
+    top: Spacing.four,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  copiedToastText: {
+    backgroundColor: Brand.ink,
+    color: Brand.white,
+    fontSize: 12,
+    fontFamily: Fonts.semiBold,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one,
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  popover: {
+    position: 'absolute',
+    minWidth: 150,
+    backgroundColor: Brand.cream,
+    borderRadius: Spacing.three,
+    paddingVertical: Spacing.half,
+    shadowColor: Brand.ink,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  popoverRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+  },
+  popoverRowText: {
+    color: Brand.ink,
+    fontSize: 14,
+    fontFamily: Fonts.semiBold,
+  },
+  popoverDivider: {
+    height: 1,
+    backgroundColor: Brand.paper,
+    marginHorizontal: Spacing.two,
+  },
+  meEditInput: {
+    color: Brand.ink,
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: Fonts.semiBold,
+    minWidth: 120,
+    padding: 0,
+  },
+  editActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: Spacing.one,
+    marginTop: Spacing.two,
+  },
+  editActionButton: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: Brand.paper,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editActionButtonPrimary: {
+    backgroundColor: Brand.green,
   },
 });
