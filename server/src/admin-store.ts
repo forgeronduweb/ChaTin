@@ -1,6 +1,15 @@
-import { and, count, desc, eq, gte, ilike, max, sql } from 'drizzle-orm';
+import { count, desc, eq, gt, gte, ilike, max, sql } from 'drizzle-orm';
 import { db } from './db/client.js';
-import { appReleases, conversations, feedback, messages, prompts, sessions, users } from './db/schema.js';
+import {
+  adminNotificationState,
+  appReleases,
+  conversations,
+  feedback,
+  messages,
+  prompts,
+  sessions,
+  users,
+} from './db/schema.js';
 
 function startOfToday(): Date {
   const d = new Date();
@@ -8,43 +17,178 @@ function startOfToday(): Date {
   return d;
 }
 
-export async function getStats() {
-  const todayStart = startOfToday();
+function startOfWeek(): Date {
+  const d = startOfToday();
+  const day = d.getDay(); // 0 = Sunday
+  const diffToMonday = day === 0 ? 6 : day - 1;
+  d.setDate(d.getDate() - diffToMonday);
+  return d;
+}
 
-  const [
-    [{ totalUsers }],
-    [{ newUsersToday }],
-    [{ activeUsersToday }],
-    [{ conversationCount }],
-    [{ messagesToday }],
-    activityRows,
-  ] = await Promise.all([
-    db.select({ totalUsers: count() }).from(users),
-    db.select({ newUsersToday: count() }).from(users).where(gte(users.createdAt, todayStart)),
-    db
-      .select({ activeUsersToday: sql<number>`count(distinct ${sessions.userId})` })
-      .from(sessions)
-      .where(gte(sessions.createdAt, todayStart)),
-    db.select({ conversationCount: count() }).from(conversations),
-    db.select({ messagesToday: count() }).from(messages).where(gte(messages.createdAt, todayStart)),
-    db
-      .select({
-        day: sql<string>`to_char(${messages.createdAt}, 'YYYY-MM-DD')`,
-        count: count(),
-      })
-      .from(messages)
-      .where(gte(messages.createdAt, sql`now() - interval '6 days'`))
-      .groupBy(sql`1`)
-      .orderBy(sql`1`),
-  ]);
+function startOfMonth(): Date {
+  const d = startOfToday();
+  d.setDate(1);
+  return d;
+}
+
+function startOfYear(): Date {
+  const d = startOfToday();
+  d.setMonth(0, 1);
+  return d;
+}
+
+// Each stat below groups every count against a single table into one query
+// (via FILTER clauses) instead of one round trip per number - Supabase's
+// pooler on the free tier struggles when this many queries fire in parallel
+// (Promise.all was opening 15 connections at once here and would
+// occasionally trip a statement timeout that took the whole process down).
+export async function getStats() {
+  const todayStart = startOfToday().toISOString();
+  const weekStart = startOfWeek().toISOString();
+  const monthStart = startOfMonth().toISOString();
+  const yearStart = startOfYear().toISOString();
+
+  const [[userStats], [sessionStats], [convStats], [messageStats], [{ totalFeedbackCount }], activityRows] =
+    await Promise.all([
+      db
+        .select({
+          totalUsers: count(),
+          newUsersToday: sql<number>`count(*) filter (where ${users.createdAt} >= ${todayStart})`.mapWith(Number),
+          newUsersWeek: sql<number>`count(*) filter (where ${users.createdAt} >= ${weekStart})`.mapWith(Number),
+          newUsersMonth: sql<number>`count(*) filter (where ${users.createdAt} >= ${monthStart})`.mapWith(Number),
+          newUsersYear: sql<number>`count(*) filter (where ${users.createdAt} >= ${yearStart})`.mapWith(Number),
+        })
+        .from(users),
+      db
+        .select({
+          activeUsersToday: sql<number>`count(distinct ${sessions.userId}) filter (where ${sessions.createdAt} >= ${todayStart})`.mapWith(Number),
+          activeUsersWeek: sql<number>`count(distinct ${sessions.userId}) filter (where ${sessions.createdAt} >= ${weekStart})`.mapWith(Number),
+        })
+        .from(sessions),
+      db
+        .select({
+          conversationCount: count(),
+          registeredConversations: sql<number>`count(*) filter (where ${conversations.userId} is not null)`.mapWith(Number),
+          usersWithActivity: sql<number>`count(distinct ${conversations.userId}) filter (where ${conversations.userId} is not null)`.mapWith(Number),
+        })
+        .from(conversations),
+      db
+        .select({
+          messagesToday: sql<number>`count(*) filter (where ${messages.createdAt} >= ${todayStart})`.mapWith(Number),
+          totalMessages: count(),
+          totalPrompts: sql<number>`count(*) filter (where ${messages.from} = 'me')`.mapWith(Number),
+        })
+        .from(messages),
+      db.select({ totalFeedbackCount: count() }).from(feedback),
+      db
+        .select({
+          day: sql<string>`to_char(${messages.createdAt}, 'YYYY-MM-DD')`,
+          count: count(),
+        })
+        .from(messages)
+        .where(gte(messages.createdAt, sql`now() - interval '6 days'`))
+        .groupBy(sql`1`)
+        .orderBy(sql`1`),
+    ]);
+
+  const guestConversations = convStats.conversationCount - convStats.registeredConversations;
 
   return {
-    totalUsers,
-    newUsersToday,
-    activeUsersToday: Number(activeUsersToday),
-    conversationCount,
-    messagesToday,
+    totalUsers: userStats.totalUsers,
+    newUsersToday: userStats.newUsersToday,
+    newUsersWeek: userStats.newUsersWeek,
+    newUsersMonth: userStats.newUsersMonth,
+    newUsersYear: userStats.newUsersYear,
+    activeUsersToday: sessionStats.activeUsersToday,
+    activeUsersWeek: sessionStats.activeUsersWeek,
+    conversationCount: convStats.conversationCount,
+    registeredConversations: convStats.registeredConversations,
+    guestConversations,
+    messagesToday: messageStats.messagesToday,
+    totalMessages: messageStats.totalMessages,
+    totalPrompts: messageStats.totalPrompts,
+    usersWithActivity: convStats.usersWithActivity,
+    totalFeedbackCount,
     activity: activityRows,
+  };
+}
+
+// ---------- Notifications (unread badges for Utilisateurs / Retours) ----------
+
+const NOTIFICATION_KEYS = ['users', 'feedback'] as const;
+export type NotificationKey = (typeof NOTIFICATION_KEYS)[number];
+
+export function isNotificationKey(value: unknown): value is NotificationKey {
+  return typeof value === 'string' && (NOTIFICATION_KEYS as readonly string[]).includes(value);
+}
+
+export async function getNotificationCounts(): Promise<Record<NotificationKey, number>> {
+  const states = await db.select().from(adminNotificationState);
+  const viewedAt = new Map(states.map((s) => [s.key, s.lastViewedAt]));
+  const epoch = new Date(0);
+
+  const [[{ newUsers }], [{ newFeedback }]] = await Promise.all([
+    db.select({ newUsers: count() }).from(users).where(gt(users.createdAt, viewedAt.get('users') ?? epoch)),
+    db.select({ newFeedback: count() }).from(feedback).where(gt(feedback.createdAt, viewedAt.get('feedback') ?? epoch)),
+  ]);
+
+  return { users: newUsers, feedback: newFeedback };
+}
+
+export async function markNotificationViewed(key: NotificationKey): Promise<void> {
+  await db
+    .insert(adminNotificationState)
+    .values({ key, lastViewedAt: new Date() })
+    .onConflictDoUpdate({ target: adminNotificationState.key, set: { lastViewedAt: new Date() } });
+}
+
+// ---------- Analytics report ----------
+
+export async function getAnalyticsReport() {
+  const weekStart = startOfWeek();
+
+  const [[{ totalUsers }], [{ activeUsersWeek }], [convStats], [{ totalPrompts }], [{ totalFeedbackCount }], registrationTrend, usageTrend] =
+    await Promise.all([
+      db.select({ totalUsers: count() }).from(users),
+      db
+        .select({ activeUsersWeek: sql<number>`count(distinct ${sessions.userId})`.mapWith(Number) })
+        .from(sessions)
+        .where(gte(sessions.createdAt, weekStart)),
+      db
+        .select({
+          conversationCount: count(),
+          registeredConversations: sql<number>`count(*) filter (where ${conversations.userId} is not null)`.mapWith(Number),
+        })
+        .from(conversations),
+      db.select({ totalPrompts: count() }).from(messages).where(eq(messages.from, 'me')),
+      db.select({ totalFeedbackCount: count() }).from(feedback),
+      db
+        .select({ day: sql<string>`to_char(${users.createdAt}, 'YYYY-MM-DD')`, count: count() })
+        .from(users)
+        .where(gte(users.createdAt, sql`now() - interval '29 days'`))
+        .groupBy(sql`1`)
+        .orderBy(sql`1`),
+      db
+        .select({ day: sql<string>`to_char(${messages.createdAt}, 'YYYY-MM-DD')`, count: count() })
+        .from(messages)
+        .where(gte(messages.createdAt, sql`now() - interval '29 days'`))
+        .groupBy(sql`1`)
+        .orderBy(sql`1`),
+    ]);
+
+  const { conversationCount, registeredConversations } = convStats;
+  const guestConversations = conversationCount - registeredConversations;
+  const registrationRate = conversationCount > 0 ? (registeredConversations / conversationCount) * 100 : 0;
+  const activityRate = totalUsers > 0 ? (Number(activeUsersWeek) / totalUsers) * 100 : 0;
+
+  return {
+    totalPrompts,
+    totalFeedbackCount,
+    registrationRate,
+    activityRate,
+    registeredVsGuest: { registered: registeredConversations, guest: guestConversations },
+    registrationTrend,
+    usageTrend,
   };
 }
 

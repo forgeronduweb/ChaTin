@@ -59,6 +59,15 @@ export const feedback = pgTable('feedback', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
+// Tracks when the admin last opened each notified section ('users' |
+// 'feedback'), so the sidebar badge can show a count of items created since
+// then. One row per key - there's a single shared admin login (HTTP Basic,
+// any username), not per-admin accounts, so this doesn't need a user column.
+export const adminNotificationState = pgTable('admin_notification_state', {
+  key: text('key').primaryKey(),
+  lastViewedAt: timestamp('last_viewed_at').notNull().defaultNow(),
+});
+
 export const appReleases = pgTable('app_releases', {
   id: uuid('id').primaryKey().defaultRandom(),
   version: text('version').notNull(),

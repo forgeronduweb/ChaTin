@@ -10,13 +10,17 @@ import {
   deletePrompt,
   deleteRelease,
   deleteUser,
+  getAnalyticsReport,
   getConversationDetail,
+  getNotificationCounts,
   getStats,
+  isNotificationKey,
   listConversations,
   listFeedback,
   listPrompts,
   listReleases,
   listUsers,
+  markNotificationViewed,
   setUserStatus,
   updatePrompt,
 } from '../admin-store.js';
@@ -36,6 +40,34 @@ adminRouter.get(
   '/admin/api/stats',
   asyncHandler(async (_req, res) => {
     res.json(await getStats());
+  }),
+);
+
+adminRouter.get(
+  '/admin/api/report',
+  asyncHandler(async (_req, res) => {
+    res.json(await getAnalyticsReport());
+  }),
+);
+
+// --- Notifications (Utilisateurs / Retours unread badges) ---
+
+adminRouter.get(
+  '/admin/api/notifications',
+  asyncHandler(async (_req, res) => {
+    res.json(await getNotificationCounts());
+  }),
+);
+
+adminRouter.post(
+  '/admin/api/notifications/:key/read',
+  asyncHandler(async (req, res) => {
+    if (!isNotificationKey(req.params.key)) {
+      res.status(400).json({ error: 'Unknown notification key' });
+      return;
+    }
+    await markNotificationViewed(req.params.key);
+    res.status(204).end();
   }),
 );
 
