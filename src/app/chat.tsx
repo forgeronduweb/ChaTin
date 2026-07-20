@@ -8,7 +8,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as DocumentPicker from 'expo-document-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Image, Keyboard, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, {
   Easing,
@@ -29,7 +29,10 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { AnimatedPressable } from '@/components/animated-pressable';
 import { AppDialog } from '@/components/app-dialog';
 import { MessageActionBar, type Reaction } from '@/components/message-action-bar';
-import { Brand, Fonts, Spacing } from '@/constants/theme';
+import { MessageContent } from '@/components/message-content';
+import { OutlinedFlower } from '@/components/outlined-flower';
+import { Brand, Fonts, lightColors, Spacing, type ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/contexts/theme-context';
 import {
   type ChatMessage,
   createConversation,
@@ -128,6 +131,9 @@ function ChatInputBar({
   onAttach: () => void;
   onRemoveAttachment: () => void;
 }) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   if (isRecording) {
     return (
       <View style={[styles.inputRow, { paddingBottom: Spacing.three + bottomPadding }]}>
@@ -172,7 +178,7 @@ function ChatInputBar({
       )}
       <View style={styles.inputRow}>
         <Pressable onPress={onAttach} style={({ pressed }) => [styles.attachButton, pressed && styles.pressed]}>
-          <SymbolView tintColor={Brand.white} name={{ ios: 'paperclip', android: 'attach_file', web: 'attach_file' }} size={18} />
+          <SymbolView tintColor={colors.text} name={{ ios: 'paperclip', android: 'attach_file', web: 'attach_file' }} size={18} />
         </Pressable>
         <TextInput
           value={draft}
@@ -219,6 +225,9 @@ function MessageActionPopover({
   onCopy: () => void;
   onDismiss: () => void;
 }) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   if (!anchor) return null;
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onDismiss}>
@@ -278,20 +287,23 @@ const MessageBubble = memo(function MessageBubble({
   isSpeaking: boolean;
   onToggleSpeak: () => void;
 }) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   if (message.from === 'bot') {
     return (
       <Animated.View entering={FadeInUp.duration(260).springify().damping(18)} style={styles.botMessageBlock}>
         <View style={styles.botLabelRow}>
-          <Image
-            source={require('@/assets/images/flower_only_1024.png')}
-            style={styles.botLabelLogo}
-            resizeMode="contain"
-          />
+          <View style={styles.botLabelLogoBadge}>
+            <Image
+              source={require('@/assets/images/flower_only_1024.png')}
+              style={styles.botLabelLogo}
+              resizeMode="contain"
+            />
+          </View>
           <Text style={styles.botLabel}>ChaTin</Text>
         </View>
-        <View style={styles.botBubble}>
-          <Text style={styles.botText}>{message.text}</Text>
-        </View>
+        <MessageContent text={message.text} />
         <MessageActionBar
           text={message.text}
           reaction={reaction}
@@ -364,6 +376,8 @@ const MessageBubble = memo(function MessageBubble({
 
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { id, title } = useLocalSearchParams<{ id?: string; title?: string }>();
   const [stored] = useState(() => (id ? getStoredConversation(id) : undefined));
   const [draft, setDraft] = useState('');
@@ -811,15 +825,19 @@ export default function ChatScreen() {
               sending && !showIntroLogo ? (
                 <Animated.View entering={FadeInUp.duration(220)} style={styles.botMessageBlock}>
                   <View style={styles.botLabelRow}>
-                    <Image
-                      source={require('@/assets/images/flower_only_1024.png')}
-                      style={styles.botLabelLogo}
-                      resizeMode="contain"
-                    />
+                    <View style={styles.botLabelLogoBadge}>
+                      <Image
+                        source={require('@/assets/images/flower_only_1024.png')}
+                        style={styles.botLabelLogo}
+                        resizeMode="contain"
+                      />
+                    </View>
                     <Text style={styles.botLabel}>ChaTin</Text>
                   </View>
                   <View style={styles.loadingBubble}>
-                    <SpinningFlower size={22} />
+                    <View style={styles.loadingFlowerBadge}>
+                      <SpinningFlower size={16} />
+                    </View>
                     <LoadingStatusText style={styles.loadingStatusText} />
                   </View>
                 </Animated.View>
@@ -847,15 +865,7 @@ export default function ChatScreen() {
             <Animated.View style={[styles.introOverlay, heroWrapperStyle]} pointerEvents="none">
               <View style={styles.heroRow}>
                 <Animated.View style={[styles.emptyLogoBadge, heroBadgeStyle]}>
-                  {heroSpinning ? (
-                    <SpinningFlower size={70} />
-                  ) : (
-                    <Image
-                      source={require('@/assets/images/flower_only_1024.png')}
-                      style={styles.emptyLogo}
-                      resizeMode="contain"
-                    />
-                  )}
+                  <OutlinedFlower size={88} spin={heroSpinning} />
                 </Animated.View>
                 {heroSpinning && <LoadingStatusText style={styles.loadingStatusText} />}
               </View>
@@ -914,7 +924,7 @@ export default function ChatScreen() {
               style={({ pressed }) => pressed && styles.pressed}>
               <View style={styles.iconButton}>
                 <SymbolView
-                  tintColor={Brand.white}
+                  tintColor={colors.text}
                   name={{ ios: 'line.3.horizontal.decrease', android: 'sort', web: 'sort' }}
                   size={18}
                 />
@@ -926,7 +936,7 @@ export default function ChatScreen() {
               style={({ pressed }) => pressed && styles.pressed}>
               <View style={styles.iconButton}>
                 <SymbolView
-                  tintColor={Brand.white}
+                  tintColor={colors.text}
                   name={{ ios: 'square.and.pencil', android: 'edit', web: 'edit' }}
                   size={18}
                 />
@@ -954,10 +964,11 @@ export default function ChatScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Brand.chatBackground,
+    backgroundColor: colors.background,
   },
   headerOverlay: {
     position: 'absolute',
@@ -977,13 +988,13 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Brand.chatBubble,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   chatCard: {
     flex: 1,
-    backgroundColor: Brand.chatBackground,
+    backgroundColor: colors.background,
     borderTopLeftRadius: Spacing.five,
     borderTopRightRadius: Spacing.five,
     overflow: 'hidden',
@@ -1011,20 +1022,8 @@ const styles = StyleSheet.create({
   emptyLogoBadge: {
     width: 160,
     height: 160,
-    borderRadius: 80,
-    backgroundColor: Brand.ink,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: Brand.ink,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.22,
-    shadowRadius: 14,
-    elevation: 8,
-  },
-  emptyLogo: {
-    width: 88,
-    height: 88,
-    transform: [{ rotate: '5deg' }],
   },
   messages: {
     paddingHorizontal: Spacing.four,
@@ -1032,9 +1031,11 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.four,
     gap: Spacing.four,
   },
+  // Full width, unlike the "mine" bubble - ChatGPT-style: the assistant's
+  // answer isn't boxed in a bubble, so tables/code/charts get the whole row
+  // to work with instead of being squeezed into an 85%-wide card.
   botMessageBlock: {
-    alignSelf: 'flex-start',
-    maxWidth: '85%',
+    alignSelf: 'stretch',
     gap: Spacing.one,
   },
   botLabelRow: {
@@ -1042,19 +1043,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.half,
   },
+  // The flower mark's petals are mostly cream - legible on the always-dark
+  // chat before theming, but they'd vanish on a light background, so it
+  // always sits on its own small fixed-dark chip regardless of theme.
+  botLabelLogoBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.iconChipBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   botLabelLogo: {
-    width: 14,
-    height: 14,
+    width: 13,
+    height: 13,
   },
   botLabel: {
     color: Brand.textMuted,
     fontSize: 12,
     fontFamily: Fonts.semiBold,
-  },
-  botBubble: {
-    backgroundColor: Brand.chatBubble,
-    borderRadius: Spacing.five,
-    padding: Spacing.three,
   },
   messagesArea: {
     flex: 1,
@@ -1068,22 +1075,30 @@ const styles = StyleSheet.create({
     height: Spacing.five + Spacing.two,
     borderTopLeftRadius: Spacing.five,
     borderTopRightRadius: Spacing.five,
-    experimental_backgroundImage: 'linear-gradient(180deg, rgba(21, 21, 21, 0.65) 0%, transparent 100%)',
+    experimental_backgroundImage: `linear-gradient(180deg, ${colors.topFadeRgba} 0%, transparent 100%)`,
   },
   bottomFade: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    experimental_backgroundImage: `linear-gradient(0deg, ${Brand.chatBackground} 40%, transparent)`,
+    experimental_backgroundImage: `linear-gradient(0deg, ${colors.background} 40%, transparent)`,
   },
   loadingBubble: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
-    backgroundColor: Brand.chatBubble,
+    backgroundColor: colors.bubbleOtherBackground,
     borderRadius: Spacing.five,
     padding: Spacing.three,
+  },
+  loadingFlowerBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.iconChipBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   loadingStatusText: {
     color: Brand.textMuted,
@@ -1117,12 +1132,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: Fonts.semiBold,
   },
-  botText: {
-    color: Brand.white,
-    fontSize: 14,
-    lineHeight: 20,
-    fontFamily: Fonts.regular,
-  },
   meMessageBlock: {
     alignSelf: 'flex-end',
     alignItems: 'flex-end',
@@ -1130,12 +1139,12 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
   },
   meBubble: {
-    backgroundColor: Brand.white,
+    backgroundColor: colors.bubbleMineBackground,
     borderRadius: Spacing.five,
     padding: Spacing.three,
   },
   meText: {
-    color: Brand.ink,
+    color: colors.bubbleMineText,
     fontSize: 14,
     lineHeight: 20,
     fontFamily: Fonts.semiBold,
@@ -1170,11 +1179,11 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    backgroundColor: Brand.chatInput,
+    backgroundColor: colors.surfaceElevated,
     borderRadius: 999,
     paddingHorizontal: Spacing.four,
     paddingVertical: Spacing.three,
-    color: Brand.white,
+    color: colors.text,
     fontSize: 14,
     fontFamily: Fonts.regular,
   },
@@ -1193,7 +1202,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: Brand.chatBubble,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1207,23 +1216,27 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
     alignSelf: 'flex-start',
     maxWidth: '85%',
-    backgroundColor: Brand.chatInput,
+    backgroundColor: colors.surfaceElevated,
     borderRadius: 999,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
   },
   attachmentChipText: {
     flexShrink: 1,
-    color: Brand.white,
+    color: colors.text,
     fontSize: 13,
     fontFamily: Fonts.regular,
   },
+  // Sits inside the "mine" bubble, which itself inverts with the theme -
+  // fixed to the light surface/ink pair so it stays legible either way,
+  // and matches dark mode's already-shipped look exactly (a light chip on
+  // the always-white "mine" bubble).
   messageAttachmentChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.one,
     alignSelf: 'flex-start',
-    backgroundColor: Brand.paper,
+    backgroundColor: lightColors.surface,
     borderRadius: 999,
     paddingHorizontal: Spacing.two,
     paddingVertical: 4,
@@ -1239,7 +1252,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
-    backgroundColor: Brand.chatInput,
+    backgroundColor: colors.surfaceElevated,
     borderRadius: 999,
     paddingHorizontal: Spacing.four,
     paddingVertical: Spacing.three,
@@ -1251,7 +1264,7 @@ const styles = StyleSheet.create({
     backgroundColor: Brand.red,
   },
   recordingText: {
-    color: Brand.white,
+    color: colors.text,
     fontSize: 14,
     fontFamily: Fonts.regular,
   },
@@ -1282,10 +1295,13 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     overflow: 'hidden',
   },
+  // Fixed to the light surface regardless of theme - matches dark mode's
+  // already-shipped look (a light context menu over the dark chat) exactly,
+  // and stays visually separated from a light page via its own shadow.
   popover: {
     position: 'absolute',
     minWidth: 150,
-    backgroundColor: Brand.cream,
+    backgroundColor: lightColors.background,
     borderRadius: Spacing.three,
     paddingVertical: Spacing.half,
     shadowColor: Brand.ink,
@@ -1308,11 +1324,11 @@ const styles = StyleSheet.create({
   },
   popoverDivider: {
     height: 1,
-    backgroundColor: Brand.paper,
+    backgroundColor: lightColors.surface,
     marginHorizontal: Spacing.two,
   },
   meEditInput: {
-    color: Brand.ink,
+    color: colors.bubbleMineText,
     fontSize: 14,
     lineHeight: 20,
     fontFamily: Fonts.semiBold,
@@ -1329,11 +1345,12 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: Brand.paper,
+    backgroundColor: lightColors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   editActionButtonPrimary: {
     backgroundColor: Brand.green,
   },
-});
+  });
+}
