@@ -42,6 +42,12 @@ export const DASHBOARD_HTML = `<!doctype html>
   .nav-item:hover { color: var(--white); background: rgba(255,255,255,0.06); }
   .nav-item.active { background: rgba(255,255,255,0.09); color: var(--white); }
   .nav-item.active svg { opacity: 1; color: var(--accent, var(--yellow)); }
+  .nav-badge {
+    margin-left: auto; background: var(--red); color: var(--white);
+    font-size: 10.5px; font-weight: 800; min-width: 18px; height: 18px; flex-shrink: 0;
+    border-radius: 999px; display: none; align-items: center; justify-content: center; padding: 0 5px; line-height: 1;
+  }
+  .nav-badge.show { display: inline-flex; }
 
   /* Main */
   .main { flex: 1; min-width: 0; padding: 32px 36px 80px; }
@@ -71,6 +77,8 @@ export const DASHBOARD_HTML = `<!doctype html>
   .btn:disabled { opacity: 0.5; cursor: default; }
 
   /* Stats */
+  .stat-section { margin-bottom: 26px; }
+  .stat-section-title { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 800; margin: 0 0 12px; }
   .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
   .stat-card { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
   .stat-card-head { display: flex; align-items: center; justify-content: space-between; }
@@ -83,6 +91,29 @@ export const DASHBOARD_HTML = `<!doctype html>
   .card h3 { margin: 0 0 16px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); font-weight: 700; }
 
   .chart { display: flex; align-items: flex-end; gap: 10px; height: 140px; }
+
+  /* Report */
+  .report-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px; }
+  .chart-line-wrap { position: relative; }
+  .chart-svg { width: 100%; height: 190px; display: block; overflow: visible; }
+  .chart-tooltip {
+    position: absolute; pointer-events: none; background: var(--ink); color: var(--white);
+    font-size: 11.5px; font-weight: 700; padding: 6px 10px; border-radius: 8px; white-space: nowrap;
+    transform: translate(-50%, -100%); opacity: 0; transition: opacity .1s; z-index: 5; top: 0; left: 0;
+  }
+  .chart-tooltip.show { opacity: 1; }
+  .chart-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px; }
+  .chart-legend-item { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 700; color: var(--ink-muted); }
+  .chart-legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+
+  .rate-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+  .rate-card { flex: 1; min-width: 190px; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 18px 20px; }
+  .rate-card .value { font-size: 25px; font-weight: 800; }
+  .rate-card .label { font-size: 12px; color: var(--text-muted); font-weight: 600; margin-top: 4px; }
+  .rate-bar { height: 6px; border-radius: 999px; background: var(--paper); margin-top: 12px; overflow: hidden; }
+  .rate-bar-fill { height: 100%; border-radius: 999px; }
+
+  .donut-wrap { display: flex; align-items: center; gap: 26px; flex-wrap: wrap; }
   .chart-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
   .chart-bar { width: 100%; max-width: 32px; background: var(--yellow); border-radius: 5px 5px 2px 2px; min-height: 4px; }
   .chart-label { font-size: 11px; color: var(--text-muted); font-weight: 600; }
@@ -112,11 +143,30 @@ export const DASHBOARD_HTML = `<!doctype html>
   .empty, .loading { padding: 48px 24px; text-align: center; color: var(--text-muted); font-weight: 600; }
 
   /* Prompts grid */
-  .prompts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
-  .prompt-card { border-radius: var(--radius-md); padding: 18px; display: flex; flex-direction: column; gap: 8px; position: relative; }
-  .prompt-title { font-weight: 700; font-size: 15px; line-height: 1.3; }
-  .prompt-meta { font-size: 12px; color: rgba(22,22,22,0.6); }
-  .prompt-actions { display: flex; gap: 10px; margin-top: 12px; }
+  .prompts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+  .prompt-card {
+    border-radius: var(--radius-md); padding: 20px; display: flex; flex-direction: column; gap: 12px;
+    position: relative; min-height: 174px; box-shadow: 0 1px 3px rgba(22,22,22,0.07);
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .prompt-card:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(22,22,22,0.14); }
+  .prompt-card-body { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .prompt-category-pill {
+    align-self: flex-start; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em;
+    background: rgba(22,22,22,0.14); color: rgba(22,22,22,0.78); padding: 3px 10px; border-radius: 999px;
+  }
+  .prompt-title {
+    font-weight: 700; font-size: 15.5px; line-height: 1.35; margin: 0;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .prompt-author {
+    font-size: 12px; color: rgba(22,22,22,0.6); font-weight: 600;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .prompt-actions { display: flex; gap: 8px; margin-top: 2px; }
+  .prompt-actions .btn { flex: 1; justify-content: center; }
+  .btn-prompt-delete { background: var(--ink); color: var(--white); border-color: var(--ink); }
+  .btn-prompt-delete:hover { background: #000; border-color: #000; }
   .prompt-featured { position: absolute; top: 14px; right: 14px; font-size: 10.5px; font-weight: 700; background: var(--ink); color: var(--white); padding: 3px 10px; border-radius: 999px; }
 
   /* Modal */
@@ -171,6 +221,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     <button class="nav-item" data-view="users" style="--accent:#F3A7C7">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       Utilisateurs
+      <span class="nav-badge" id="badge-users">0</span>
     </button>
     <button class="nav-item" data-view="conversations" style="--accent:#3FBE7A">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -187,6 +238,11 @@ export const DASHBOARD_HTML = `<!doctype html>
     <button class="nav-item" data-view="feedback" style="--accent:#3FBE7A">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
       Retours
+      <span class="nav-badge" id="badge-feedback">0</span>
+    </button>
+    <button class="nav-item" data-view="report" style="--accent:#8EC5FC">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18.7 8 13 13.7l-3-3L4.3 16.4"/></svg>
+      Rapport
     </button>
   </aside>
 
@@ -194,43 +250,134 @@ export const DASHBOARD_HTML = `<!doctype html>
     <!-- Accueil -->
     <section class="view active" id="view-home">
       <div class="view-header"><h1 class="view-title">Accueil</h1></div>
-      <div class="stats" id="stats">
-        <div class="stat-card" style="--accent:#C9822B;--accent-bg:rgba(246,196,69,.16)">
-          <div class="stat-card-head">
-            <span class="label">Utilisateurs</span>
-            <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+
+      <div class="stat-section">
+        <p class="stat-section-title">Utilisateurs inscrits</p>
+        <div class="stats">
+          <div class="stat-card" style="--accent:#C9822B;--accent-bg:rgba(246,196,69,.16)">
+            <div class="stat-card-head">
+              <span class="label">Total inscrits</span>
+              <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+            </div>
+            <div class="value" id="stat-totalUsers">—</div>
           </div>
-          <div class="value">—</div>
-        </div>
-        <div class="stat-card" style="--accent:#238C56;--accent-bg:rgba(63,190,122,.16)">
-          <div class="stat-card-head">
-            <span class="label">Nouveaux aujourd'hui</span>
-            <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg></span>
+          <div class="stat-card" style="--accent:#238C56;--accent-bg:rgba(63,190,122,.16)">
+            <div class="stat-card-head">
+              <span class="label">Nouveaux aujourd'hui</span>
+              <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg></span>
+            </div>
+            <div class="value" id="stat-newUsersToday">—</div>
           </div>
-          <div class="value">—</div>
-        </div>
-        <div class="stat-card" style="--accent:#C1568A;--accent-bg:rgba(243,167,199,.2)">
-          <div class="stat-card-head">
-            <span class="label">Actifs aujourd'hui</span>
-            <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
+          <div class="stat-card" style="--accent:#238C56;--accent-bg:rgba(63,190,122,.16)">
+            <div class="stat-card-head">
+              <span class="label">Nouveaux cette semaine</span>
+              <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
+            </div>
+            <div class="value" id="stat-newUsersWeek">—</div>
           </div>
-          <div class="value">—</div>
-        </div>
-        <div class="stat-card" style="--accent:#3E7FBF;--accent-bg:rgba(142,197,252,.22)">
-          <div class="stat-card-head">
-            <span class="label">Conversations</span>
-            <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+          <div class="stat-card" style="--accent:#238C56;--accent-bg:rgba(63,190,122,.16)">
+            <div class="stat-card-head">
+              <span class="label">Nouveaux ce mois</span>
+              <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01"/></svg></span>
+            </div>
+            <div class="value" id="stat-newUsersMonth">—</div>
           </div>
-          <div class="value">—</div>
-        </div>
-        <div class="stat-card" style="--accent:#7C4FBF;--accent-bg:rgba(201,167,243,.22)">
-          <div class="stat-card-head">
-            <span class="label">Messages aujourd'hui</span>
-            <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>
+          <div class="stat-card" style="--accent:#238C56;--accent-bg:rgba(63,190,122,.16)">
+            <div class="stat-card-head">
+              <span class="label">Nouveaux cette année</span>
+              <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
+            </div>
+            <div class="value" id="stat-newUsersYear">—</div>
           </div>
-          <div class="value">—</div>
         </div>
       </div>
+
+      <div class="stat-section">
+        <p class="stat-section-title">Utilisation de l'application</p>
+        <div class="stats">
+          <div class="stat-card" style="--accent:#C1568A;--accent-bg:rgba(243,167,199,.2)">
+            <div class="stat-card-head">
+              <span class="label">Actifs aujourd'hui</span>
+              <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
+            </div>
+            <div class="value" id="stat-activeUsersToday">—</div>
+          </div>
+          <div class="stat-card" style="--accent:#C1568A;--accent-bg:rgba(243,167,199,.2)">
+            <div class="stat-card-head">
+              <span class="label">Actifs cette semaine</span>
+              <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
+            </div>
+            <div class="value" id="stat-activeUsersWeek">—</div>
+          </div>
+          <div class="stat-card" style="--accent:#3E7FBF;--accent-bg:rgba(142,197,252,.22)">
+            <div class="stat-card-head">
+              <span class="label">Utilisateurs actifs (total)</span>
+              <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+            </div>
+            <div class="value" id="stat-usersWithActivity">—</div>
+          </div>
+          <div class="stat-card" style="--accent:#7C4FBF;--accent-bg:rgba(201,167,243,.22)">
+            <div class="stat-card-head">
+              <span class="label">Prompts générés</span>
+              <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M3 12h3M18 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/><circle cx="12" cy="12" r="3"/></svg></span>
+            </div>
+            <div class="value" id="stat-totalPrompts">—</div>
+          </div>
+          <div class="stat-card" style="--accent:#7C4FBF;--accent-bg:rgba(201,167,243,.22)">
+            <div class="stat-card-head">
+              <span class="label">Messages aujourd'hui</span>
+              <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>
+            </div>
+            <div class="value" id="stat-messagesToday">—</div>
+          </div>
+          <div class="stat-card" style="--accent:#7C4FBF;--accent-bg:rgba(201,167,243,.22)">
+            <div class="stat-card-head">
+              <span class="label">Messages au total</span>
+              <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>
+            </div>
+            <div class="value" id="stat-totalMessages">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stat-section">
+        <p class="stat-section-title">Inscrits vs invités</p>
+        <div class="stats">
+          <div class="stat-card" style="--accent:#3E7FBF;--accent-bg:rgba(142,197,252,.22)">
+            <div class="stat-card-head">
+              <span class="label">Conversations totales</span>
+              <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+            </div>
+            <div class="value" id="stat-conversationCount">—</div>
+          </div>
+          <div class="stat-card" style="--accent:#238C56;--accent-bg:rgba(63,190,122,.16)">
+            <div class="stat-card-head">
+              <span class="label">Conv. par inscrits</span>
+              <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></span>
+            </div>
+            <div class="value" id="stat-registeredConversations">—</div>
+          </div>
+          <div class="stat-card" style="--accent:#C9822B;--accent-bg:rgba(246,196,69,.16)">
+            <div class="stat-card-head">
+              <span class="label">Conv. par invités</span>
+              <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg></span>
+            </div>
+            <div class="value" id="stat-guestConversations">—</div>
+          </div>
+          <div class="stat-card" style="--accent:#C1568A;--accent-bg:rgba(243,167,199,.2)">
+            <div class="stat-card-head">
+              <span class="label">Retours reçus</span>
+              <span class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>
+            </div>
+            <div class="value" id="stat-totalFeedbackCount">—</div>
+          </div>
+        </div>
+        <div class="rate-card" style="max-width:420px">
+          <span class="label">Part des conversations démarrées par un utilisateur inscrit</span>
+          <div class="rate-bar"><div class="rate-bar-fill" id="home-registered-bar" style="width:0%;background:#2a78d6"></div></div>
+        </div>
+      </div>
+
       <div class="card">
         <h3>Activité — messages envoyés (7 derniers jours)</h3>
         <div class="chart" id="chart"></div>
@@ -324,6 +471,47 @@ export const DASHBOARD_HTML = `<!doctype html>
         <div class="empty" id="feedback-empty" style="display:none">Aucun retour pour le moment.</div>
       </div>
     </section>
+
+    <!-- Rapport -->
+    <section class="view" id="view-report">
+      <div class="view-header"><h1 class="view-title">Rapport</h1></div>
+
+      <div class="rate-row">
+        <div class="rate-card">
+          <span class="value" id="rate-registration">—</span>
+          <div class="label">Taux d'inscription (conv. par inscrits)</div>
+          <div class="rate-bar"><div class="rate-bar-fill" id="rate-registration-bar" style="background:#2a78d6"></div></div>
+        </div>
+        <div class="rate-card">
+          <span class="value" id="rate-activity">—</span>
+          <div class="label">Taux d'activité (actifs cette semaine)</div>
+          <div class="rate-bar"><div class="rate-bar-fill" id="rate-activity-bar" style="background:#008300"></div></div>
+        </div>
+        <div class="rate-card">
+          <span class="value" id="rate-prompts">—</span>
+          <div class="label">Prompts générés au total</div>
+        </div>
+        <div class="rate-card">
+          <span class="value" id="rate-feedback">—</span>
+          <div class="label">Retours reçus au total</div>
+        </div>
+      </div>
+
+      <div class="report-grid">
+        <div class="card" style="margin-bottom:0">
+          <h3>Évolution des inscriptions (30 derniers jours)</h3>
+          <div class="chart-line-wrap" id="chart-registrations"></div>
+        </div>
+        <div class="card" style="margin-bottom:0">
+          <h3>Évolution de l'utilisation — messages (30 derniers jours)</h3>
+          <div class="chart-line-wrap" id="chart-usage"></div>
+        </div>
+        <div class="card" style="margin-bottom:0">
+          <h3>Inscrits vs invités</h3>
+          <div class="donut-wrap" id="donut-registered"></div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <!-- Conversation detail modal -->
@@ -407,6 +595,7 @@ export const DASHBOARD_HTML = `<!doctype html>
 
   <script>
     const COLORS = ['#F6C445', '#F3A7C7', '#3FBE7A', '#8EC5FC', '#C9A7F3'];
+    const PALETTE = ['#2a78d6', '#008300', '#e87ba4', '#eda100', '#1baf7a', '#eb6834', '#4a3aa7', '#e34948'];
 
     // ---------- Navigation ----------
     document.querySelectorAll('.nav-item').forEach((btn) => {
@@ -415,8 +604,38 @@ export const DASHBOARD_HTML = `<!doctype html>
         document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
         btn.classList.add('active');
         document.getElementById('view-' + btn.dataset.view).classList.add('active');
+
+        if (btn.dataset.view === 'users' || btn.dataset.view === 'feedback') {
+          markNotificationRead(btn.dataset.view);
+        }
+        if (btn.dataset.view === 'report') {
+          loadReport();
+        }
       });
     });
+
+    // ---------- Notifications ----------
+    async function loadNotifications() {
+      const res = await fetch('/admin/api/notifications');
+      const counts = await res.json();
+      updateBadge('badge-users', counts.users);
+      updateBadge('badge-feedback', counts.feedback);
+    }
+
+    function updateBadge(id, value) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = value > 99 ? '99+' : String(value);
+      el.classList.toggle('show', value > 0);
+    }
+
+    async function markNotificationRead(key) {
+      const badgeId = 'badge-' + key;
+      const el = document.getElementById(badgeId);
+      if (el && !el.classList.contains('show')) return;
+      updateBadge(badgeId, 0);
+      await fetch('/admin/api/notifications/' + key + '/read', { method: 'POST' });
+    }
 
     function escapeHtml(str) {
       const div = document.createElement('div');
@@ -435,12 +654,20 @@ export const DASHBOARD_HTML = `<!doctype html>
     async function loadStats() {
       const res = await fetch('/admin/api/stats');
       const data = await res.json();
-      const values = document.querySelectorAll('#stats .value');
-      values[0].textContent = data.totalUsers;
-      values[1].textContent = data.newUsersToday;
-      values[2].textContent = data.activeUsersToday;
-      values[3].textContent = data.conversationCount;
-      values[4].textContent = data.messagesToday;
+      [
+        'totalUsers', 'newUsersToday', 'newUsersWeek', 'newUsersMonth', 'newUsersYear',
+        'activeUsersToday', 'activeUsersWeek', 'usersWithActivity', 'totalPrompts',
+        'messagesToday', 'totalMessages', 'conversationCount', 'registeredConversations',
+        'guestConversations', 'totalFeedbackCount',
+      ].forEach((key) => {
+        const el = document.getElementById('stat-' + key);
+        if (el) el.textContent = data[key];
+      });
+
+      const registeredPct = data.conversationCount > 0
+        ? Math.round((data.registeredConversations / data.conversationCount) * 100)
+        : 0;
+      document.getElementById('home-registered-bar').style.width = registeredPct + '%';
 
       const days = [];
       const today = new Date();
@@ -458,6 +685,105 @@ export const DASHBOARD_HTML = `<!doctype html>
         const label = new Date(d).toLocaleDateString('fr-FR', { weekday: 'short' });
         return \`<div class="chart-bar-wrap"><div class="chart-bar" style="height:\${pct}%" title="\${val} messages"></div><div class="chart-label">\${label}</div></div>\`;
       }).join('');
+    }
+
+    // ---------- Rapport ----------
+    let reportLoaded = false;
+    async function loadReport() {
+      if (reportLoaded) return;
+      reportLoaded = true;
+      const res = await fetch('/admin/api/report');
+      const data = await res.json();
+
+      document.getElementById('rate-registration').textContent = data.registrationRate.toFixed(1) + '%';
+      document.getElementById('rate-registration-bar').style.width = Math.min(100, data.registrationRate) + '%';
+      document.getElementById('rate-activity').textContent = data.activityRate.toFixed(1) + '%';
+      document.getElementById('rate-activity-bar').style.width = Math.min(100, data.activityRate) + '%';
+      document.getElementById('rate-prompts').textContent = data.totalPrompts;
+      document.getElementById('rate-feedback').textContent = data.totalFeedbackCount;
+
+      renderLineChart('chart-registrations', data.registrationTrend, PALETTE[0], 'inscriptions');
+      renderLineChart('chart-usage', data.usageTrend, PALETTE[1], 'messages');
+      renderDonut('donut-registered', data.registeredVsGuest);
+    }
+
+    function buildDayRange(n) {
+      const days = [];
+      const today = new Date();
+      for (let i = n - 1; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        days.push(d.toISOString().slice(0, 10));
+      }
+      return days;
+    }
+
+    function renderLineChart(wrapId, rows, color, unitLabel) {
+      const days = buildDayRange(30);
+      const byDay = Object.fromEntries(rows.map((r) => [r.day, Number(r.count)]));
+      const values = days.map((d) => byDay[d] || 0);
+      const max = Math.max(1, ...values);
+      const w = 600, h = 190, pad = 12;
+      const stepX = (w - pad * 2) / (values.length - 1);
+      const points = values.map((v, i) => ({
+        x: pad + i * stepX,
+        y: h - pad - (v / max) * (h - pad * 2),
+        v,
+        day: days[i],
+      }));
+      const linePath = points.map((p, i) => (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' ');
+      const last = points[points.length - 1];
+      const first = points[0];
+      const areaPath = linePath + \` L\${last.x.toFixed(1)},\${h - pad} L\${first.x.toFixed(1)},\${h - pad} Z\`;
+
+      const wrap = document.getElementById(wrapId);
+      wrap.innerHTML = \`
+        <svg class="chart-svg" viewBox="0 0 \${w} \${h}" preserveAspectRatio="none">
+          <path d="\${areaPath}" fill="\${color}" opacity="0.1" stroke="none"></path>
+          <path d="\${linePath}" fill="none" stroke="\${color}" stroke-width="2.5"></path>
+          \${points.map((p) => \`<circle cx="\${p.x.toFixed(1)}" cy="\${p.y.toFixed(1)}" r="10" fill="transparent" class="chart-hit" data-i="\${p.day}"></circle>\`).join('')}
+        </svg>
+        <div class="chart-tooltip" id="\${wrapId}-tooltip"></div>
+        <div class="chart-legend">
+          <span class="chart-legend-item"><span class="chart-legend-dot" style="background:\${color}"></span>\${unitLabel} par jour</span>
+        </div>\`;
+
+      const svg = wrap.querySelector('svg');
+      const tooltip = document.getElementById(wrapId + '-tooltip');
+      wrap.querySelectorAll('.chart-hit').forEach((circle, i) => {
+        circle.addEventListener('mouseenter', () => {
+          const p = points[i];
+          const rect = svg.getBoundingClientRect();
+          tooltip.style.left = ((p.x / w) * rect.width) + 'px';
+          tooltip.style.top = ((p.y / h) * rect.height) + 'px';
+          tooltip.textContent = new Date(p.day).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) + ' — ' + p.v + ' ' + unitLabel;
+          tooltip.classList.add('show');
+        });
+        circle.addEventListener('mouseleave', () => tooltip.classList.remove('show'));
+      });
+    }
+
+    function renderDonut(containerId, counts) {
+      const total = counts.registered + counts.guest;
+      const registeredPct = total > 0 ? counts.registered / total : 0;
+      const r = 62, sw = 24, c = 2 * Math.PI * r;
+      const regLen = c * registeredPct;
+      const cx = 76, cy = 76;
+
+      const wrap = document.getElementById(containerId);
+      wrap.innerHTML = \`
+        <svg width="152" height="152" viewBox="0 0 152 152">
+          <circle cx="\${cx}" cy="\${cy}" r="\${r}" fill="none" stroke="\${PALETTE[1]}" stroke-width="\${sw}"></circle>
+          <circle cx="\${cx}" cy="\${cy}" r="\${r}" fill="none" stroke="\${PALETTE[0]}" stroke-width="\${sw}"
+            stroke-dasharray="\${regLen.toFixed(1)} \${(c - regLen).toFixed(1)}" stroke-linecap="butt"
+            transform="rotate(-90 \${cx} \${cy})"></circle>
+          <text x="\${cx}" y="\${cy - 3}" text-anchor="middle" font-size="22" font-weight="800" fill="var(--ink)">\${total}</text>
+          <text x="\${cx}" y="\${cy + 15}" text-anchor="middle" font-size="10" font-weight="700" fill="var(--text-muted)">conversations</text>
+        </svg>
+        <div class="chart-legend" style="flex-direction:column;gap:10px;margin-top:0">
+          <span class="chart-legend-item"><span class="chart-legend-dot" style="background:\${PALETTE[0]}"></span>Inscrits — \${counts.registered} (\${Math.round(registeredPct * 100)}%)</span>
+          <span class="chart-legend-item"><span class="chart-legend-dot" style="background:\${PALETTE[1]}"></span>Invités — \${counts.guest} (\${Math.round(100 - registeredPct * 100)}%)</span>
+        </div>\`;
     }
 
     // ---------- Users ----------
@@ -583,11 +909,14 @@ export const DASHBOARD_HTML = `<!doctype html>
       grid.innerHTML = prompts.map((p) => \`
         <div class="prompt-card" style="background:\${p.color}">
           \${p.featured ? '<span class="prompt-featured">Vedette</span>' : ''}
-          <span class="prompt-title">\${escapeHtml(p.title)}</span>
-          <span class="prompt-meta">\${escapeHtml(p.category || '')}\${p.author ? ' · ' + escapeHtml(p.author) : ''}</span>
+          <div class="prompt-card-body">
+            \${p.category ? \`<span class="prompt-category-pill">\${escapeHtml(p.category)}</span>\` : ''}
+            <p class="prompt-title" title="\${escapeHtml(p.title)}">\${escapeHtml(p.title)}</p>
+            \${p.author ? \`<span class="prompt-author">\${escapeHtml(p.author)}</span>\` : ''}
+          </div>
           <div class="prompt-actions">
             <button class="btn btn-outline btn-sm" data-action="edit-prompt" data-id="\${p.id}">Modifier</button>
-            <button class="btn btn-danger btn-sm" data-action="delete-prompt" data-id="\${p.id}">Supprimer</button>
+            <button class="btn btn-prompt-delete btn-sm" data-action="delete-prompt" data-id="\${p.id}">Supprimer</button>
           </div>
         </div>\`).join('');
 
@@ -763,6 +1092,7 @@ export const DASHBOARD_HTML = `<!doctype html>
 
     // ---------- Init ----------
     loadStats();
+    loadNotifications();
     loadUsers();
     loadConversations();
     loadPrompts();
