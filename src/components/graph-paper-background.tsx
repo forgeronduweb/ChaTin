@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent, type ViewProps } from 'react-native';
 
-import { Brand } from '@/constants/theme';
+import { type ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/contexts/theme-context';
 
-const LINE_COLOR = '#E3DCC2';
 const GRID_SIZE = 28;
 
 export function GraphPaperBackground({ style, ...rest }: ViewProps) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [size, setSize] = useState({ width: 0, height: 0 });
 
   function handleLayout(event: LayoutChangeEvent) {
@@ -29,24 +31,26 @@ export function GraphPaperBackground({ style, ...rest }: ViewProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  grid: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: Brand.cream,
-    overflow: 'hidden',
-  },
-  verticalLine: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: StyleSheet.hairlineWidth,
-    backgroundColor: LINE_COLOR,
-  },
-  horizontalLine: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: LINE_COLOR,
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    grid: {
+      ...StyleSheet.absoluteFill,
+      backgroundColor: colors.background,
+      overflow: 'hidden',
+    },
+    verticalLine: {
+      position: 'absolute',
+      top: 0,
+      bottom: 0,
+      width: StyleSheet.hairlineWidth,
+      backgroundColor: colors.border,
+    },
+    horizontalLine: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.border,
+    },
+  });
+}

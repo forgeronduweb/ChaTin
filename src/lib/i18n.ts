@@ -36,6 +36,8 @@ const en = {
   chatLoadingThinking: 'Thinking…',
   chatLoadingGenerating: 'Generating a reply…',
   chatLoadingAlmost: 'Almost there…',
+  chatCodeLanguageText: 'Text',
+  chatChartOther: 'Other',
 
   loginTitle: 'Sign in to ChaTin',
   loginSubtitle:
@@ -65,6 +67,9 @@ const en = {
   settingsGeneral: 'General',
   settingsLanguage: 'Language',
   settingsVersion: 'Version',
+  settingsThemeLight: 'Light theme',
+  settingsThemeDark: 'Dark theme',
+  settingsThemeAuto: 'Automatic theme',
 
   settingsFeedback: 'Help us improve',
   settingsFeedbackPlaceholder: 'A suggestion, a bug to report...',
@@ -131,6 +136,8 @@ const fr: Record<keyof typeof en, string> = {
   chatLoadingThinking: 'Réflexion en cours…',
   chatLoadingGenerating: 'Génération de la réponse…',
   chatLoadingAlmost: 'Presque prêt…',
+  chatCodeLanguageText: 'Texte',
+  chatChartOther: 'Autres',
 
   loginTitle: 'Connecte-toi à ChaTin',
   loginSubtitle:
@@ -161,6 +168,9 @@ const fr: Record<keyof typeof en, string> = {
   settingsGeneral: 'Général',
   settingsLanguage: 'Langue',
   settingsVersion: 'Version',
+  settingsThemeLight: 'Thème clair',
+  settingsThemeDark: 'Thème sombre',
+  settingsThemeAuto: 'Thème automatique',
 
   settingsFeedback: 'Nous améliorer',
   settingsFeedbackPlaceholder: 'Une suggestion, un bug à signaler...',

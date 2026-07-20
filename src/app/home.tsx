@@ -1,6 +1,6 @@
 import { router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,7 +8,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AnimatedPressable } from '@/components/animated-pressable';
 import { GraphPaperBackground } from '@/components/graph-paper-background';
 import { UpdatePrompt } from '@/components/update-prompt';
-import { Brand, Fonts, Spacing } from '@/constants/theme';
+import { Brand, Fonts, Spacing, type ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/contexts/theme-context';
 import { type AuthUser, getSession } from '@/lib/auth';
 import { listStoredConversations, type StoredConversation } from '@/lib/conversations-store';
 import { t } from '@/lib/i18n';
@@ -24,7 +25,7 @@ function initialsFor(name: string) {
     .toUpperCase();
 }
 
-function SeeAllLink({ onPress }: { onPress: () => void }) {
+function SeeAllLink({ onPress, styles }: { onPress: () => void; styles: ReturnType<typeof createStyles> }) {
   return (
     <Pressable onPress={onPress} style={({ pressed }) => pressed && styles.pressed}>
       <View style={styles.seeAllRow}>
@@ -35,6 +36,8 @@ function SeeAllLink({ onPress }: { onPress: () => void }) {
 }
 
 export default function HomeScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [historyPreview, setHistoryPreview] = useState<StoredConversation[]>([]);
   const { prompts } = usePrompts();
@@ -84,11 +87,12 @@ export default function HomeScreen() {
             <View>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>{t('homeChatHistory')}</Text>
-                <SeeAllLink onPress={() => router.push('/history')} />
+                <SeeAllLink onPress={() => router.push('/history')} styles={styles} />
               </View>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
+                style={styles.historyScroll}
                 contentContainerStyle={styles.tagRow}>
                 {historyPreview.map((conversation, index) => (
                   <Animated.View key={conversation.id} entering={FadeInUp.duration(300).delay(index * 60)}>
@@ -111,7 +115,7 @@ export default function HomeScreen() {
         <View style={styles.promptSection}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>{t('homePopularPrompt')}</Text>
-            <SeeAllLink onPress={() => router.push('/prompts')} />
+            <SeeAllLink onPress={() => router.push('/prompts')} styles={styles} />
           </View>
           <View style={styles.promptRow}>
             {featuredPrompts.map((prompt, index) => (
@@ -143,143 +147,155 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Brand.cream,
-  },
-  safeArea: {
-    flex: 1,
-  },
-  gridSection: {
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.three,
-    paddingBottom: Spacing.four,
-    gap: Spacing.four,
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Brand.pink,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarEmoji: {
-    fontSize: 20,
-  },
-  avatarInitials: {
-    color: Brand.ink,
-    fontSize: 16,
-    fontFamily: Fonts.bold,
-  },
-  title: {
-    color: Brand.ink,
-    fontSize: 28,
-    lineHeight: 34,
-    fontFamily: Fonts.bold,
-  },
-  newChat: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Brand.yellow,
-    borderRadius: 999,
-    paddingLeft: Spacing.four,
-    paddingRight: Spacing.two,
-    paddingVertical: Spacing.two,
-  },
-  newChatText: {
-    color: Brand.ink,
-    fontSize: 16,
-    fontFamily: Fonts.bold,
-  },
-  newChatArrow: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Brand.ink,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: Spacing.three,
-  },
-  sectionTitle: {
-    color: Brand.ink,
-    fontSize: 20,
-    fontFamily: Fonts.bold,
-  },
-  seeAllRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  seeAllText: {
-    color: Brand.textMuted,
-    fontSize: 14,
-    fontFamily: Fonts.medium,
-  },
-  tagRow: {
-    flexDirection: 'row',
-    gap: Spacing.two,
-  },
-  tag: {
-    maxWidth: 220,
-    backgroundColor: Brand.ink,
-    borderRadius: 999,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-  },
-  tagText: {
-    color: Brand.white,
-    fontSize: 13,
-    fontFamily: Fonts.semiBold,
-  },
-  promptSection: {
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.four,
-  },
-  promptRow: {
-    flexDirection: 'row',
-    gap: Spacing.three,
-  },
-  promptCard: {
-    flex: 1,
-    height: 220,
-    borderRadius: Spacing.four,
-    padding: Spacing.three,
-    justifyContent: 'space-between',
-  },
-  promptCardBody: {
-    gap: Spacing.two,
-  },
-  promptTitle: {
-    color: Brand.ink,
-    fontSize: 16,
-    lineHeight: 21,
-    fontFamily: Fonts.bold,
-  },
-  promptAuthor: {
-    color: Brand.inkMuted,
-    fontSize: 12,
-    lineHeight: 16,
-    fontFamily: Fonts.regular,
-  },
-  promptButton: {
-    backgroundColor: Brand.white,
-    borderRadius: 999,
-    paddingVertical: Spacing.two,
-    alignItems: 'center',
-  },
-  promptButtonText: {
-    color: Brand.ink,
-    fontSize: 13,
-    fontFamily: Fonts.bold,
-  },
-  pressed: {
-    opacity: 0.8,
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    safeArea: {
+      flex: 1,
+    },
+    gridSection: {
+      paddingHorizontal: Spacing.four,
+      paddingTop: Spacing.three,
+      paddingBottom: Spacing.four,
+      gap: Spacing.four,
+    },
+    avatar: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: Brand.pink,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    avatarEmoji: {
+      fontSize: 20,
+    },
+    avatarInitials: {
+      color: Brand.ink,
+      fontSize: 16,
+      fontFamily: Fonts.bold,
+    },
+    title: {
+      color: colors.text,
+      fontSize: 28,
+      lineHeight: 34,
+      fontFamily: Fonts.bold,
+    },
+    newChat: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: Brand.yellow,
+      borderRadius: 999,
+      paddingLeft: Spacing.four,
+      paddingRight: Spacing.two,
+      paddingVertical: Spacing.two,
+    },
+    newChatText: {
+      color: Brand.ink,
+      fontSize: 16,
+      fontFamily: Fonts.bold,
+    },
+    newChatArrow: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: Brand.ink,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: Spacing.three,
+    },
+    sectionTitle: {
+      color: colors.text,
+      fontSize: 20,
+      fontFamily: Fonts.bold,
+    },
+    seeAllRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    seeAllText: {
+      color: Brand.textMuted,
+      fontSize: 14,
+      fontFamily: Fonts.medium,
+    },
+    // Bleeds past gridSection's horizontal padding so the row's scrollable
+    // viewport spans the full screen width - otherwise the last tag gets
+    // stuck at the section's inset edge instead of scrolling clear of the
+    // physical screen edge.
+    historyScroll: {
+      marginHorizontal: -Spacing.four,
+    },
+    tagRow: {
+      flexDirection: 'row',
+      gap: Spacing.two,
+      paddingHorizontal: Spacing.four,
+    },
+    tag: {
+      maxWidth: 220,
+      backgroundColor: colors.iconChipBackground,
+      borderRadius: 999,
+      paddingHorizontal: Spacing.three,
+      paddingVertical: Spacing.two,
+    },
+    tagText: {
+      color: Brand.white,
+      fontSize: 13,
+      fontFamily: Fonts.semiBold,
+    },
+    promptSection: {
+      paddingHorizontal: Spacing.four,
+      paddingTop: Spacing.four,
+    },
+    promptRow: {
+      flexDirection: 'row',
+      gap: Spacing.three,
+    },
+    // Prompt cards use a per-prompt pastel accent background (unrelated to
+    // page theme), so their text stays fixed ink, not the theme's `text`.
+    promptCard: {
+      flex: 1,
+      height: 220,
+      borderRadius: Spacing.four,
+      padding: Spacing.three,
+      justifyContent: 'space-between',
+    },
+    promptCardBody: {
+      gap: Spacing.two,
+    },
+    promptTitle: {
+      color: Brand.ink,
+      fontSize: 16,
+      lineHeight: 21,
+      fontFamily: Fonts.bold,
+    },
+    promptAuthor: {
+      color: Brand.inkMuted,
+      fontSize: 12,
+      lineHeight: 16,
+      fontFamily: Fonts.regular,
+    },
+    promptButton: {
+      backgroundColor: Brand.white,
+      borderRadius: 999,
+      paddingVertical: Spacing.two,
+      alignItems: 'center',
+    },
+    promptButtonText: {
+      color: Brand.ink,
+      fontSize: 13,
+      fontFamily: Fonts.bold,
+    },
+    pressed: {
+      opacity: 0.8,
+    },
+  });
+}

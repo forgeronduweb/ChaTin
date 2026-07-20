@@ -1,20 +1,36 @@
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import { router, useFocusEffect } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
-import { useCallback, useState } from 'react';
+import { SymbolView, type AndroidSymbol, type SFSymbol } from 'expo-symbols';
+import { useCallback, useMemo, useState } from 'react';
 import { Linking, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppDialog, type AppDialogAction } from '@/components/app-dialog';
 import { GraphPaperBackground } from '@/components/graph-paper-background';
 import { UpdatePrompt } from '@/components/update-prompt';
-import { Brand, Fonts, Spacing } from '@/constants/theme';
+import { Brand, Fonts, Spacing, type ThemeColors } from '@/constants/theme';
+import { useTheme } from '@/contexts/theme-context';
 import { getLatestRelease } from '@/lib/api';
 import { type AuthUser, clearSession, getSession } from '@/lib/auth';
 import { clearStoredConversations } from '@/lib/conversations-store';
 import { locale, t } from '@/lib/i18n';
+import type { ThemeMode } from '@/lib/theme-store';
 import type { PendingUpdate } from '@/lib/update-check';
+
+const THEME_ICONS: Record<ThemeMode, { ios: SFSymbol; android: AndroidSymbol; web: AndroidSymbol }> = {
+  light: { ios: 'sun.max', android: 'light_mode', web: 'light_mode' },
+  dark: { ios: 'moon.fill', android: 'dark_mode', web: 'dark_mode' },
+  auto: { ios: 'circle.lefthalf.filled', android: 'brightness_auto', web: 'brightness_auto' },
+};
+
+const THEME_LABEL_KEYS: Record<ThemeMode, 'settingsThemeLight' | 'settingsThemeDark' | 'settingsThemeAuto'> = {
+  light: 'settingsThemeLight',
+  dark: 'settingsThemeDark',
+  auto: 'settingsThemeAuto',
+};
+
+const THEME_CYCLE: Record<ThemeMode, ThemeMode> = { light: 'dark', dark: 'auto', auto: 'light' };
 
 const LANGUAGE_LABELS: Record<typeof locale, string> = {
   fr: 'Français',
@@ -41,6 +57,8 @@ function initialsFor(name: string) {
 }
 
 export default function SettingsScreen() {
+  const { mode, setMode, colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [manualUpdate, setManualUpdate] = useState<PendingUpdate | null>(null);
@@ -145,6 +163,15 @@ export default function SettingsScreen() {
                 name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
                 size={18}
               />
+            </View>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setMode(THEME_CYCLE[mode])}
+            accessibilityLabel={t(THEME_LABEL_KEYS[mode])}
+            style={({ pressed }) => pressed && styles.pressed}>
+            <View style={styles.iconButton}>
+              <SymbolView tintColor={Brand.white} name={THEME_ICONS[mode]} size={18} />
             </View>
           </Pressable>
         </View>
@@ -269,170 +296,173 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Brand.cream,
-  },
-  headerSection: {
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.two,
-    paddingBottom: Spacing.three,
-    gap: Spacing.three,
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Brand.ink,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    color: Brand.ink,
-    fontSize: 28,
-    lineHeight: 34,
-    fontFamily: Fonts.bold,
-  },
-  scrollContent: {
-    paddingHorizontal: Spacing.four,
-    paddingBottom: Spacing.six,
-    gap: Spacing.five,
-  },
-  sectionTitle: {
-    color: Brand.ink,
-    fontSize: 16,
-    fontFamily: Fonts.bold,
-    marginBottom: Spacing.three,
-  },
-  accountCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
-    backgroundColor: Brand.paper,
-    borderRadius: Spacing.four,
-    padding: Spacing.three,
-  },
-  avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: Brand.pink,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarEmoji: {
-    fontSize: 24,
-  },
-  avatarInitials: {
-    color: Brand.ink,
-    fontSize: 18,
-    fontFamily: Fonts.bold,
-  },
-  accountInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  accountLabel: {
-    color: Brand.textMuted,
-    fontSize: 12,
-    fontFamily: Fonts.medium,
-  },
-  accountName: {
-    color: Brand.ink,
-    fontSize: 16,
-    fontFamily: Fonts.bold,
-  },
-  accountEmail: {
-    color: Brand.textMuted,
-    fontSize: 13,
-    fontFamily: Fonts.regular,
-  },
-  accountSubtitle: {
-    color: Brand.textMuted,
-    fontSize: 13,
-    fontFamily: Fonts.regular,
-    lineHeight: 18,
-  },
-  actionButton: {
-    marginTop: Spacing.three,
-    borderRadius: 999,
-    paddingVertical: Spacing.three,
-    alignItems: 'center',
-    backgroundColor: Brand.ink,
-  },
-  actionButtonText: {
-    color: Brand.white,
-    fontSize: 15,
-    fontFamily: Fonts.semiBold,
-  },
-  generalSection: {
-    gap: Spacing.one,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Brand.paper,
-    borderRadius: Spacing.three,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.three,
-    marginBottom: Spacing.two,
-  },
-  rowLabel: {
-    color: Brand.ink,
-    fontSize: 14,
-    fontFamily: Fonts.semiBold,
-  },
-  rowValue: {
-    color: Brand.textMuted,
-    fontSize: 14,
-    fontFamily: Fonts.regular,
-  },
-  destructiveLabel: {
-    color: Brand.red,
-  },
-  aboutCard: {
-    backgroundColor: Brand.paper,
-    borderRadius: Spacing.four,
-    padding: Spacing.four,
-    gap: Spacing.one,
-  },
-  aboutAppName: {
-    color: Brand.ink,
-    fontSize: 20,
-    fontFamily: Fonts.bold,
-  },
-  aboutTagline: {
-    color: Brand.inkMuted,
-    fontSize: 14,
-    fontFamily: Fonts.regular,
-    lineHeight: 19,
-    marginBottom: Spacing.two,
-  },
-  aboutCredit: {
-    color: Brand.textMuted,
-    fontSize: 12,
-    fontFamily: Fonts.medium,
-  },
-  aboutLink: {
-    color: Brand.ink,
-    fontSize: 13,
-    fontFamily: Fonts.bold,
-    textDecorationLine: 'underline',
-    marginTop: Spacing.one,
-  },
-  versionFooter: {
-    color: Brand.textMuted,
-    fontSize: 12,
-    fontFamily: Fonts.medium,
-    textAlign: 'center',
-  },
-  pressed: {
-    opacity: 0.8,
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    headerSection: {
+      paddingHorizontal: Spacing.four,
+      paddingTop: Spacing.two,
+      paddingBottom: Spacing.three,
+      gap: Spacing.three,
+    },
+    topBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    iconButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.iconChipBackground,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    title: {
+      color: colors.text,
+      fontSize: 28,
+      lineHeight: 34,
+      fontFamily: Fonts.bold,
+    },
+    scrollContent: {
+      paddingHorizontal: Spacing.four,
+      paddingBottom: Spacing.six,
+      gap: Spacing.five,
+    },
+    sectionTitle: {
+      color: colors.text,
+      fontSize: 16,
+      fontFamily: Fonts.bold,
+      marginBottom: Spacing.three,
+    },
+    accountCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.three,
+      backgroundColor: colors.surface,
+      borderRadius: Spacing.four,
+      padding: Spacing.three,
+    },
+    avatar: {
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      backgroundColor: Brand.pink,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    avatarEmoji: {
+      fontSize: 24,
+    },
+    avatarInitials: {
+      color: colors.text,
+      fontSize: 18,
+      fontFamily: Fonts.bold,
+    },
+    accountInfo: {
+      flex: 1,
+      gap: 2,
+    },
+    accountLabel: {
+      color: Brand.textMuted,
+      fontSize: 12,
+      fontFamily: Fonts.medium,
+    },
+    accountName: {
+      color: colors.text,
+      fontSize: 16,
+      fontFamily: Fonts.bold,
+    },
+    accountEmail: {
+      color: Brand.textMuted,
+      fontSize: 13,
+      fontFamily: Fonts.regular,
+    },
+    accountSubtitle: {
+      color: Brand.textMuted,
+      fontSize: 13,
+      fontFamily: Fonts.regular,
+      lineHeight: 18,
+    },
+    actionButton: {
+      marginTop: Spacing.three,
+      borderRadius: 999,
+      paddingVertical: Spacing.three,
+      alignItems: 'center',
+      backgroundColor: colors.iconChipBackground,
+    },
+    actionButtonText: {
+      color: Brand.white,
+      fontSize: 15,
+      fontFamily: Fonts.semiBold,
+    },
+    generalSection: {
+      gap: Spacing.one,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.surface,
+      borderRadius: Spacing.three,
+      paddingHorizontal: Spacing.three,
+      paddingVertical: Spacing.three,
+      marginBottom: Spacing.two,
+    },
+    rowLabel: {
+      color: colors.text,
+      fontSize: 14,
+      fontFamily: Fonts.semiBold,
+    },
+    rowValue: {
+      color: Brand.textMuted,
+      fontSize: 14,
+      fontFamily: Fonts.regular,
+    },
+    destructiveLabel: {
+      color: Brand.red,
+    },
+    aboutCard: {
+      backgroundColor: colors.surface,
+      borderRadius: Spacing.four,
+      padding: Spacing.four,
+      gap: Spacing.one,
+    },
+    aboutAppName: {
+      color: colors.text,
+      fontSize: 20,
+      fontFamily: Fonts.bold,
+    },
+    aboutTagline: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontFamily: Fonts.regular,
+      lineHeight: 19,
+      marginBottom: Spacing.two,
+    },
+    aboutCredit: {
+      color: Brand.textMuted,
+      fontSize: 12,
+      fontFamily: Fonts.medium,
+    },
+    aboutLink: {
+      color: colors.text,
+      fontSize: 13,
+      fontFamily: Fonts.bold,
+      textDecorationLine: 'underline',
+      marginTop: Spacing.one,
+    },
+    versionFooter: {
+      color: Brand.textMuted,
+      fontSize: 12,
+      fontFamily: Fonts.medium,
+      textAlign: 'center',
+    },
+    pressed: {
+      opacity: 0.8,
+    },
+  });
+}

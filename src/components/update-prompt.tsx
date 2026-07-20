@@ -1,7 +1,9 @@
+import { useMemo } from 'react';
 import { Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Brand, Fonts, Spacing } from '@/constants/theme';
+import { Brand, Fonts, Spacing, type ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/contexts/theme-context';
 import type { PendingUpdate } from '@/lib/update-check';
 
 type UpdatePromptProps = {
@@ -11,6 +13,8 @@ type UpdatePromptProps = {
 
 export function UpdatePrompt({ update, onDismiss }: UpdatePromptProps) {
   const insets = useSafeAreaInsets();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={update.mandatory ? undefined : onDismiss}>
@@ -37,57 +41,59 @@ export function UpdatePrompt({ update, onDismiss }: UpdatePromptProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(22,22,22,0.5)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: Brand.cream,
-    borderTopLeftRadius: Spacing.five,
-    borderTopRightRadius: Spacing.five,
-    paddingTop: Spacing.five,
-    paddingHorizontal: Spacing.five,
-    gap: Spacing.two,
-  },
-  title: {
-    color: Brand.ink,
-    fontSize: 20,
-    fontFamily: Fonts.bold,
-  },
-  version: {
-    color: Brand.textMuted,
-    fontSize: 14,
-    fontFamily: Fonts.semiBold,
-  },
-  notes: {
-    color: Brand.inkMuted,
-    fontSize: 14,
-    lineHeight: 20,
-    fontFamily: Fonts.regular,
-    marginBottom: Spacing.two,
-  },
-  primaryButton: {
-    backgroundColor: Brand.yellow,
-    borderRadius: 999,
-    paddingVertical: Spacing.three,
-    alignItems: 'center',
-    marginTop: Spacing.two,
-  },
-  primaryButtonText: {
-    color: Brand.ink,
-    fontSize: 16,
-    fontFamily: Fonts.bold,
-  },
-  laterText: {
-    color: Brand.textMuted,
-    fontSize: 14,
-    fontFamily: Fonts.semiBold,
-    textAlign: 'center',
-    paddingVertical: Spacing.two,
-  },
-  pressed: {
-    opacity: 0.8,
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    overlay: {
+      flex: 1,
+      backgroundColor: colors.overlay,
+      justifyContent: 'flex-end',
+    },
+    sheet: {
+      backgroundColor: colors.background,
+      borderTopLeftRadius: Spacing.five,
+      borderTopRightRadius: Spacing.five,
+      paddingTop: Spacing.five,
+      paddingHorizontal: Spacing.five,
+      gap: Spacing.two,
+    },
+    title: {
+      color: colors.text,
+      fontSize: 20,
+      fontFamily: Fonts.bold,
+    },
+    version: {
+      color: Brand.textMuted,
+      fontSize: 14,
+      fontFamily: Fonts.semiBold,
+    },
+    notes: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      lineHeight: 20,
+      fontFamily: Fonts.regular,
+      marginBottom: Spacing.two,
+    },
+    primaryButton: {
+      backgroundColor: Brand.yellow,
+      borderRadius: 999,
+      paddingVertical: Spacing.three,
+      alignItems: 'center',
+      marginTop: Spacing.two,
+    },
+    primaryButtonText: {
+      color: Brand.ink,
+      fontSize: 16,
+      fontFamily: Fonts.bold,
+    },
+    laterText: {
+      color: Brand.textMuted,
+      fontSize: 14,
+      fontFamily: Fonts.semiBold,
+      textAlign: 'center',
+      paddingVertical: Spacing.two,
+    },
+    pressed: {
+      opacity: 0.8,
+    },
+  });
+}

@@ -5,6 +5,7 @@ import { Share, StyleSheet, View } from 'react-native';
 
 import { AnimatedPressable } from '@/components/animated-pressable';
 import { Brand, Spacing } from '@/constants/theme';
+import { useThemeColors } from '@/contexts/theme-context';
 import { t } from '@/lib/i18n';
 
 export type Reaction = 'like' | 'dislike' | null;
@@ -22,6 +23,7 @@ export function MessageActionBar({
   isSpeaking: boolean;
   onToggleSpeak: () => void;
 }) {
+  const colors = useThemeColors();
   const [copied, setCopied] = useState(false);
 
   function handleCopy() {
@@ -60,7 +62,7 @@ export function MessageActionBar({
         onPress={onToggleSpeak}
         style={styles.button}>
         <SymbolView
-          tintColor={isSpeaking ? Brand.ink : Brand.textMuted}
+          tintColor={isSpeaking ? colors.text : Brand.textMuted}
           name={
             isSpeaking
               ? { ios: 'stop.fill', android: 'stop', web: 'stop' }

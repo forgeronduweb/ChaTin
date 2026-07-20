@@ -1,6 +1,6 @@
 import { Redirect, router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Dimensions, Image, type ImageSourcePropType, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
@@ -15,7 +15,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { GraphPaperBackground } from '@/components/graph-paper-background';
 import { SocialAuthButtons } from '@/components/social-auth-buttons';
-import { Brand, Fonts, Spacing } from '@/constants/theme';
+import { Brand, Fonts, Spacing, type ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/contexts/theme-context';
 import { t } from '@/lib/i18n';
 import { hasCompletedOnboarding, markOnboardingComplete } from '@/lib/onboarding';
 
@@ -96,6 +97,8 @@ function goToHome() {
 
 export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [alreadyOnboarded] = useState(hasCompletedOnboarding);
 
   if (alreadyOnboarded) {
@@ -156,7 +159,7 @@ export default function WelcomeScreen() {
             <Text style={styles.ctaText}>{t('welcomeSkip')}</Text>
             <View style={styles.ctaArrow}>
               <SymbolView
-                tintColor={Brand.cream}
+                tintColor={Brand.white}
                 name={{ ios: 'arrow.right', android: 'arrow_forward', web: 'arrow_forward' }}
                 size={16}
               />
@@ -168,96 +171,98 @@ export default function WelcomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Brand.cream,
-  },
-  gridSection: {
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.four,
-    paddingBottom: Spacing.four,
-    gap: Spacing.four,
-  },
-  logoBadge: {
-    alignSelf: 'flex-start',
-    width: 132,
-    height: 44,
-  },
-  title: {
-    color: Brand.ink,
-    fontSize: 34,
-    lineHeight: 40,
-    fontFamily: Fonts.bold,
-  },
-  stickerColumns: {
-    flexDirection: 'row',
-    gap: Spacing.three,
-  },
-  stickerColumn: {
-    flex: 1,
-    gap: Spacing.three,
-  },
-  bottomOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  bottomFade: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: -Spacing.six,
-    bottom: 0,
-    experimental_backgroundImage: `linear-gradient(180deg, transparent, ${Brand.cream} 55%)`,
-  },
-  bottomSection: {
-    gap: Spacing.three,
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.five,
-    paddingBottom: Spacing.three,
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-  },
-  dividerLine: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: Brand.textMuted,
-  },
-  dividerText: {
-    color: Brand.textMuted,
-    fontSize: 13,
-    fontFamily: Fonts.medium,
-  },
-  cta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Brand.yellow,
-    borderRadius: 999,
-    paddingLeft: Spacing.four,
-    paddingRight: Spacing.two,
-    paddingVertical: Spacing.two,
-    gap: Spacing.two,
-  },
-  ctaText: {
-    color: Brand.ink,
-    fontSize: 16,
-    fontFamily: Fonts.bold,
-  },
-  ctaArrow: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Brand.ink,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pressed: {
-    opacity: 0.85,
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    gridSection: {
+      paddingHorizontal: Spacing.four,
+      paddingTop: Spacing.four,
+      paddingBottom: Spacing.four,
+      gap: Spacing.four,
+    },
+    logoBadge: {
+      alignSelf: 'flex-start',
+      width: 132,
+      height: 44,
+    },
+    title: {
+      color: colors.text,
+      fontSize: 34,
+      lineHeight: 40,
+      fontFamily: Fonts.bold,
+    },
+    stickerColumns: {
+      flexDirection: 'row',
+      gap: Spacing.three,
+    },
+    stickerColumn: {
+      flex: 1,
+      gap: Spacing.three,
+    },
+    bottomOverlay: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+    },
+    bottomFade: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      top: -Spacing.six,
+      bottom: 0,
+      experimental_backgroundImage: `linear-gradient(180deg, transparent, ${colors.background} 55%)`,
+    },
+    bottomSection: {
+      gap: Spacing.three,
+      paddingHorizontal: Spacing.four,
+      paddingTop: Spacing.five,
+      paddingBottom: Spacing.three,
+    },
+    dividerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.two,
+    },
+    dividerLine: {
+      flex: 1,
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: Brand.textMuted,
+    },
+    dividerText: {
+      color: Brand.textMuted,
+      fontSize: 13,
+      fontFamily: Fonts.medium,
+    },
+    cta: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: Brand.yellow,
+      borderRadius: 999,
+      paddingLeft: Spacing.four,
+      paddingRight: Spacing.two,
+      paddingVertical: Spacing.two,
+      gap: Spacing.two,
+    },
+    ctaText: {
+      color: Brand.ink,
+      fontSize: 16,
+      fontFamily: Fonts.bold,
+    },
+    ctaArrow: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: Brand.ink,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    pressed: {
+      opacity: 0.85,
+    },
+  });
+}

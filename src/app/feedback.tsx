@@ -1,18 +1,21 @@
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AnimatedPressable } from '@/components/animated-pressable';
 import { AppDialog } from '@/components/app-dialog';
 import { GraphPaperBackground } from '@/components/graph-paper-background';
-import { Brand, Fonts, Spacing } from '@/constants/theme';
+import { Brand, Fonts, Spacing, type ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/contexts/theme-context';
 import { submitFeedback } from '@/lib/api';
 import { t } from '@/lib/i18n';
 
 export default function FeedbackScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [message, setMessage] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [showEmptyDialog, setShowEmptyDialog] = useState(false);
@@ -90,82 +93,84 @@ export default function FeedbackScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Brand.cream,
-  },
-  headerSection: {
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.two,
-    paddingBottom: Spacing.three,
-    gap: Spacing.three,
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Brand.ink,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    color: Brand.ink,
-    fontSize: 28,
-    lineHeight: 34,
-    fontFamily: Fonts.bold,
-  },
-  body: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-  },
-  card: {
-    backgroundColor: Brand.paper,
-    borderRadius: Spacing.four,
-    padding: Spacing.three,
-    gap: Spacing.three,
-  },
-  input: {
-    backgroundColor: Brand.white,
-    borderRadius: Spacing.three,
-    padding: Spacing.three,
-    color: Brand.ink,
-    fontSize: 14,
-    fontFamily: Fonts.regular,
-    minHeight: 160,
-    textAlignVertical: 'top',
-  },
-  sendButton: {
-    borderRadius: 999,
-    paddingVertical: Spacing.three,
-    alignItems: 'center',
-    backgroundColor: Brand.ink,
-  },
-  sendButtonDisabled: {
-    opacity: 0.6,
-  },
-  sendButtonText: {
-    color: Brand.white,
-    fontSize: 15,
-    fontFamily: Fonts.semiBold,
-  },
-  success: {
-    color: Brand.green,
-    fontSize: 13,
-    fontFamily: Fonts.semiBold,
-    textAlign: 'center',
-  },
-  error: {
-    color: Brand.red,
-    fontSize: 13,
-    fontFamily: Fonts.semiBold,
-    textAlign: 'center',
-  },
-  pressed: {
-    opacity: 0.8,
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    headerSection: {
+      paddingHorizontal: Spacing.four,
+      paddingTop: Spacing.two,
+      paddingBottom: Spacing.three,
+      gap: Spacing.three,
+    },
+    topBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    iconButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.iconChipBackground,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    title: {
+      color: colors.text,
+      fontSize: 28,
+      lineHeight: 34,
+      fontFamily: Fonts.bold,
+    },
+    body: {
+      flex: 1,
+      paddingHorizontal: Spacing.four,
+    },
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: Spacing.four,
+      padding: Spacing.three,
+      gap: Spacing.three,
+    },
+    input: {
+      backgroundColor: colors.surfaceElevated,
+      borderRadius: Spacing.three,
+      padding: Spacing.three,
+      color: colors.text,
+      fontSize: 14,
+      fontFamily: Fonts.regular,
+      minHeight: 160,
+      textAlignVertical: 'top',
+    },
+    sendButton: {
+      borderRadius: 999,
+      paddingVertical: Spacing.three,
+      alignItems: 'center',
+      backgroundColor: colors.iconChipBackground,
+    },
+    sendButtonDisabled: {
+      opacity: 0.6,
+    },
+    sendButtonText: {
+      color: Brand.white,
+      fontSize: 15,
+      fontFamily: Fonts.semiBold,
+    },
+    success: {
+      color: Brand.green,
+      fontSize: 13,
+      fontFamily: Fonts.semiBold,
+      textAlign: 'center',
+    },
+    error: {
+      color: Brand.red,
+      fontSize: 13,
+      fontFamily: Fonts.semiBold,
+      textAlign: 'center',
+    },
+    pressed: {
+      opacity: 0.8,
+    },
+  });
+}

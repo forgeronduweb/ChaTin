@@ -1,7 +1,9 @@
+import { useMemo } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Brand, Fonts, Spacing } from '@/constants/theme';
+import { Brand, Fonts, Spacing, type ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/contexts/theme-context';
 
 export type AppDialogAction = {
   label: string;
@@ -23,6 +25,8 @@ type AppDialogProps = {
 // on-screen (confirmations, update-check results).
 export function AppDialog({ visible, title, message, primaryAction, secondaryAction, onRequestClose }: AppDialogProps) {
   const insets = useSafeAreaInsets();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onRequestClose}>
@@ -54,58 +58,60 @@ export function AppDialog({ visible, title, message, primaryAction, secondaryAct
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(22,22,22,0.5)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: Brand.cream,
-    borderTopLeftRadius: Spacing.five,
-    borderTopRightRadius: Spacing.five,
-    paddingTop: Spacing.five,
-    paddingHorizontal: Spacing.five,
-    gap: Spacing.two,
-  },
-  title: {
-    color: Brand.ink,
-    fontSize: 20,
-    fontFamily: Fonts.bold,
-  },
-  message: {
-    color: Brand.inkMuted,
-    fontSize: 14,
-    lineHeight: 20,
-    fontFamily: Fonts.regular,
-    marginBottom: Spacing.two,
-  },
-  primaryButton: {
-    backgroundColor: Brand.yellow,
-    borderRadius: 999,
-    paddingVertical: Spacing.three,
-    alignItems: 'center',
-    marginTop: Spacing.two,
-  },
-  primaryButtonText: {
-    color: Brand.ink,
-    fontSize: 16,
-    fontFamily: Fonts.bold,
-  },
-  destructiveButton: {
-    backgroundColor: Brand.red,
-  },
-  destructiveButtonText: {
-    color: Brand.white,
-  },
-  secondaryText: {
-    color: Brand.textMuted,
-    fontSize: 14,
-    fontFamily: Fonts.semiBold,
-    textAlign: 'center',
-    paddingVertical: Spacing.two,
-  },
-  pressed: {
-    opacity: 0.8,
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    overlay: {
+      flex: 1,
+      backgroundColor: colors.overlay,
+      justifyContent: 'flex-end',
+    },
+    sheet: {
+      backgroundColor: colors.background,
+      borderTopLeftRadius: Spacing.five,
+      borderTopRightRadius: Spacing.five,
+      paddingTop: Spacing.five,
+      paddingHorizontal: Spacing.five,
+      gap: Spacing.two,
+    },
+    title: {
+      color: colors.text,
+      fontSize: 20,
+      fontFamily: Fonts.bold,
+    },
+    message: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      lineHeight: 20,
+      fontFamily: Fonts.regular,
+      marginBottom: Spacing.two,
+    },
+    primaryButton: {
+      backgroundColor: Brand.yellow,
+      borderRadius: 999,
+      paddingVertical: Spacing.three,
+      alignItems: 'center',
+      marginTop: Spacing.two,
+    },
+    primaryButtonText: {
+      color: Brand.ink,
+      fontSize: 16,
+      fontFamily: Fonts.bold,
+    },
+    destructiveButton: {
+      backgroundColor: Brand.red,
+    },
+    destructiveButtonText: {
+      color: Brand.white,
+    },
+    secondaryText: {
+      color: Brand.textMuted,
+      fontSize: 14,
+      fontFamily: Fonts.semiBold,
+      textAlign: 'center',
+      paddingVertical: Spacing.two,
+    },
+    pressed: {
+      opacity: 0.8,
+    },
+  });
+}
