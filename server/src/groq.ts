@@ -1,8 +1,6 @@
 import Groq, { toFile } from 'groq-sdk';
+import { SYSTEM_PROMPT } from './system-prompt.js';
 import type { ChatMessage } from './store.js';
-
-const SYSTEM_PROMPT =
-  'You are ChaTin, a friendly and helpful AI chat assistant. Keep answers concise and conversational.';
 
 let client: Groq | null = null;
 
