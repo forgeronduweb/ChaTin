@@ -1,10 +1,9 @@
 import { GoogleGenAI } from '@google/genai';
-import { SYSTEM_PROMPT } from './system-prompt.js';
 import type { ChatMessage } from './store.js';
 
 let client: GoogleGenAI | null = null;
 
-export async function generateReply(history: ChatMessage[]): Promise<string> {
+export async function generateReply(history: ChatMessage[], systemPrompt: string): Promise<string> {
   client ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
   const response = await client.models.generateContent({
@@ -13,7 +12,7 @@ export async function generateReply(history: ChatMessage[]): Promise<string> {
       role: message.from === 'me' ? 'user' : 'model',
       parts: [{ text: message.text }],
     })),
-    config: { systemInstruction: SYSTEM_PROMPT },
+    config: { systemInstruction: systemPrompt, tools: [{ googleSearch: {} }] },
   });
 
   return response.text ?? '';

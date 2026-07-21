@@ -18,6 +18,7 @@ export type AuthUser = {
   name: string;
   email: string;
   avatarUrl?: string;
+  city?: string | null;
 };
 
 export type Session = {
@@ -32,6 +33,13 @@ export async function getSession(): Promise<Session | null> {
 
 export async function clearSession(): Promise<void> {
   await SecureStore.deleteItemAsync(SESSION_KEY);
+}
+
+export async function updateSessionUserCity(city: string | null): Promise<void> {
+  const session = await getSession();
+  if (!session) return;
+  session.user.city = city;
+  await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(session));
 }
 
 function currentDeviceInfo() {

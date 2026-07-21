@@ -52,6 +52,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     throw new Error(`Request to ${path} failed with status ${response.status}`);
   }
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
@@ -133,6 +134,39 @@ export type PickedFile = {
   uri: string;
   name: string;
 };
+
+export type Memory = {
+  id: string;
+  content: string;
+  createdAt: number;
+};
+
+export function getMemories(): Promise<Memory[]> {
+  return request<Memory[]>('/api/memories');
+}
+
+export function deleteMemory(id: string): Promise<void> {
+  return request(`/api/memories/${id}`, { method: 'DELETE' });
+}
+
+export function deleteAllMemories(): Promise<void> {
+  return request('/api/memories', { method: 'DELETE' });
+}
+
+export type ProfileUser = {
+  id: string;
+  name: string;
+  email: string;
+  avatarUrl: string | null;
+  city: string | null;
+};
+
+export function updateCity(city: string | null): Promise<ProfileUser> {
+  return request('/api/me', {
+    method: 'PATCH',
+    body: JSON.stringify({ city }),
+  });
+}
 
 export async function sendMessageWithFile(
   conversationId: string,

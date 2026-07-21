@@ -36,6 +36,7 @@
       ],
       "expo-secure-store",
       "expo-localization",
+      "expo-location",
       "@react-native-google-signin/google-signin",
       [
         "expo-build-properties",

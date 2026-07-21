@@ -3,24 +3,13 @@ import multer from 'multer';
 import { generateReply } from '../ai.js';
 import { asyncHandler } from '../async-handler.js';
 import { extractFileText, SUPPORTED_ATTACHMENT_TYPES } from '../file-extraction.js';
+import { extractAndSaveMemories } from '../memory-store.js';
+import { resolveUserId } from '../request-auth.js';
 import { addMessage, createConversation, getConversation, listConversations, setMessageReaction } from '../store.js';
-import { getUserByToken } from '../users-store.js';
 
 export const chatRouter = Router();
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
-
-async function resolveUserId(req: { headers: { authorization?: string } }): Promise<string | undefined> {
-  const header = req.headers.authorization;
-  if (!header?.startsWith('Bearer ')) return undefined;
-  const token = header.slice('Bearer '.length);
-  try {
-    const user = await getUserByToken(token);
-    return user?.id;
-  } catch {
-    return undefined;
-  }
-}
 
 chatRouter.get(
   '/conversations',
@@ -85,6 +74,8 @@ chatRouter.post(
       }
     }
 
+    const userId = await resolveUserId(req);
+
     const userMessage = await addMessage(conversation.id, {
       from: 'me',
       text,
@@ -103,9 +94,15 @@ chatRouter.post(
       : history;
 
     try {
-      const replyText = await generateReply(historyForAI);
+      const replyText = await generateReply(historyForAI, userId);
       const reply = await addMessage(conversation.id, { from: 'bot', text: replyText });
       res.status(201).json({ reply, messages: [...history, reply] });
+
+      if (userId) {
+        extractAndSaveMemories(userId, conversation.id, text, replyText).catch((error) => {
+          console.error('Memory extraction failed:', error);
+        });
+      }
     } catch (error) {
       console.error('AI provider error:', error);
       res.status(502).json({ error: 'Failed to generate a reply' });

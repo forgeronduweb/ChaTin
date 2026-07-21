@@ -5,6 +5,7 @@ import { adminRouter } from './routes/admin.js';
 import { authRouter } from './routes/auth.js';
 import { chatRouter } from './routes/chat.js';
 import { feedbackRouter } from './routes/feedback.js';
+import { memoriesRouter } from './routes/memories.js';
 import { promptsRouter } from './routes/prompts.js';
 import { releasesRouter } from './routes/releases.js';
 import { transcribeRouter } from './routes/transcribe.js';
@@ -27,6 +28,7 @@ app.use('/api', promptsRouter);
 app.use('/api', releasesRouter);
 app.use('/api', feedbackRouter);
 app.use('/api', transcribeRouter);
+app.use('/api', memoriesRouter);
 app.use(adminRouter);
 
 // Catch-all error handler: anything asyncHandler passes to next(err) lands

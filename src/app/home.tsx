@@ -13,6 +13,7 @@ import { useThemeColors } from '@/contexts/theme-context';
 import { type AuthUser, getSession } from '@/lib/auth';
 import { listStoredConversations, type StoredConversation } from '@/lib/conversations-store';
 import { t } from '@/lib/i18n';
+import { syncCityFromLocation } from '@/lib/location';
 import { usePrompts } from '@/lib/prompts';
 import { usePendingUpdate } from '@/lib/update-check';
 
@@ -47,7 +48,10 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      getSession().then((session) => setUser(session?.user ?? null));
+      getSession().then((session) => {
+        setUser(session?.user ?? null);
+        if (session?.user) void syncCityFromLocation();
+      });
       setHistoryPreview(listStoredConversations().slice(0, 3));
     }, []),
   );

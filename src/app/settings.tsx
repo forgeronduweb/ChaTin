@@ -15,6 +15,7 @@ import { getLatestRelease } from '@/lib/api';
 import { type AuthUser, clearSession, getSession } from '@/lib/auth';
 import { clearStoredConversations } from '@/lib/conversations-store';
 import { locale, t } from '@/lib/i18n';
+import { syncCityFromLocation } from '@/lib/location';
 import type { ThemeMode } from '@/lib/theme-store';
 import type { PendingUpdate } from '@/lib/update-check';
 
@@ -45,6 +46,7 @@ type DialogState =
   | { type: 'clearHistoryDone' }
   | { type: 'updateUpToDate' }
   | { type: 'updateError' }
+  | { type: 'cityUnavailable' }
   | null;
 
 function initialsFor(name: string) {
@@ -60,6 +62,7 @@ export default function SettingsScreen() {
   const { mode, setMode, colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [refreshingCity, setRefreshingCity] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [manualUpdate, setManualUpdate] = useState<PendingUpdate | null>(null);
   const [dialog, setDialog] = useState<DialogState>(null);
@@ -69,6 +72,18 @@ export default function SettingsScreen() {
       getSession().then((session) => setUser(session?.user ?? null));
     }, []),
   );
+
+  async function handleRefreshCity() {
+    setRefreshingCity(true);
+    try {
+      const city = await syncCityFromLocation({ force: true });
+      const session = await getSession();
+      setUser(session?.user ?? null);
+      if (!city) setDialog({ type: 'cityUnavailable' });
+    } finally {
+      setRefreshingCity(false);
+    }
+  }
 
   function closeDialog() {
     setDialog(null);
@@ -148,6 +163,11 @@ export default function SettingsScreen() {
       dialogMessage = t('settingsCheckUpdateErrorMessage');
       dialogPrimary = { label: t('settingsOk'), onPress: closeDialog };
       break;
+    case 'cityUnavailable':
+      dialogTitle = t('settingsCityUnavailableTitle');
+      dialogMessage = t('settingsCityUnavailableMessage');
+      dialogPrimary = { label: t('settingsOk'), onPress: closeDialog };
+      break;
   }
 
   return (
@@ -220,10 +240,38 @@ export default function SettingsScreen() {
             <Text style={styles.rowLabel}>{t('settingsLanguage')}</Text>
             <Text style={styles.rowValue}>{LANGUAGE_LABELS[locale]}</Text>
           </View>
+
+          {user && (
+            <Pressable
+              onPress={handleRefreshCity}
+              disabled={refreshingCity}
+              style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+              <View>
+                <Text style={styles.rowLabel}>{t('settingsCity')}</Text>
+                <Text style={styles.citySubtitle}>{user.city ?? t('settingsCityUnknown')}</Text>
+              </View>
+              <SymbolView
+                tintColor={Brand.textMuted}
+                name={{ ios: 'arrow.triangle.2.circlepath', android: 'refresh', web: 'refresh' }}
+                size={16}
+              />
+            </Pressable>
+          )}
         </View>
 
         <View style={styles.generalSection}>
           <Text style={styles.sectionTitle}>{t('settingsOther')}</Text>
+
+          {user && (
+            <Pressable onPress={() => router.push('/memory')} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+              <Text style={styles.rowLabel}>{t('settingsMemory')}</Text>
+              <SymbolView
+                tintColor={Brand.textMuted}
+                name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
+                size={16}
+              />
+            </Pressable>
+          )}
 
           <Pressable onPress={() => router.push('/feedback')} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
             <Text style={styles.rowLabel}>{t('settingsFeedback')}</Text>
@@ -421,6 +469,12 @@ function createStyles(colors: ThemeColors) {
       color: Brand.textMuted,
       fontSize: 14,
       fontFamily: Fonts.regular,
+    },
+    citySubtitle: {
+      color: Brand.textMuted,
+      fontSize: 12,
+      fontFamily: Fonts.regular,
+      marginTop: 2,
     },
     destructiveLabel: {
       color: Brand.red,

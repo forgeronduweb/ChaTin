@@ -7,6 +7,7 @@ export const users = pgTable('users', {
   email: text('email').notNull(),
   avatarUrl: text('avatar_url'),
   status: text('status', { enum: ['active', 'suspended'] }).notNull().default('active'),
+  city: text('city'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
@@ -66,6 +67,16 @@ export const feedback = pgTable('feedback', {
 export const adminNotificationState = pgTable('admin_notification_state', {
   key: text('key').primaryKey(),
   lastViewedAt: timestamp('last_viewed_at').notNull().defaultNow(),
+});
+
+export const userMemories = pgTable('user_memories', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  content: text('content').notNull(),
+  sourceConversationId: uuid('source_conversation_id').references(() => conversations.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
 export const appReleases = pgTable('app_releases', {

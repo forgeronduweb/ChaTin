@@ -9,6 +9,7 @@ export type User = {
   email: string;
   avatarUrl: string | null;
   status: 'active' | 'suspended';
+  city: string | null;
 };
 
 export async function upsertGoogleUser(profile: {
@@ -55,4 +56,14 @@ export async function getUserByToken(token: string): Promise<User | undefined> {
     .where(eq(sessions.token, token));
   if (!row || row.user.status === 'suspended') return undefined;
   return row.user;
+}
+
+export async function getUserById(userId: string): Promise<User | undefined> {
+  const [user] = await db.select().from(users).where(eq(users.id, userId));
+  return user;
+}
+
+export async function setUserCity(userId: string, city: string | null): Promise<User | undefined> {
+  const [user] = await db.update(users).set({ city }).where(eq(users.id, userId)).returning();
+  return user;
 }

@@ -93,6 +93,20 @@ const en = {
   settingsClearHistoryConfirmButton: 'Clear',
   settingsClearHistoryDone: 'History cleared.',
 
+  settingsMemory: 'Memory',
+  settingsCity: 'My city',
+  settingsCityUnknown: 'Not detected yet — tap to detect',
+  settingsCityUnavailableTitle: "Couldn't detect your city",
+  settingsCityUnavailableMessage: 'Check that location access is allowed for ChaTin in your phone settings, then try again.',
+
+  memoryTitle: 'Memory',
+  memoryIntro: 'What ChaTin remembers about you across your conversations.',
+  memoryEmpty: "ChaTin doesn't remember anything about you yet. It learns as you chat.",
+  memoryDeleteAll: 'Delete everything',
+  memoryDeleteAllConfirmTitle: 'Delete all memories?',
+  memoryDeleteAllConfirmMessage: 'ChaTin will forget everything it has learned about you. This cannot be undone.',
+  memoryDeleteAllConfirmButton: 'Delete',
+
   settingsAbout: 'About',
   settingsAboutTagline: 'The free AI chatbot that speaks French and English.',
   settingsAboutCredit: 'Built with Expo & React Native, by Evrard Baho',
@@ -194,6 +208,21 @@ const fr: Record<keyof typeof en, string> = {
     'Toutes tes conversations enregistrées sur cet appareil seront supprimées définitivement.',
   settingsClearHistoryConfirmButton: 'Effacer',
   settingsClearHistoryDone: 'Historique effacé.',
+
+  settingsMemory: 'Mémoire',
+  settingsCity: 'Ma ville',
+  settingsCityUnknown: 'Pas encore détectée — appuie pour détecter',
+  settingsCityUnavailableTitle: "Impossible de détecter ta ville",
+  settingsCityUnavailableMessage:
+    "Vérifie que l'accès à la position est autorisé pour ChaTin dans les paramètres de ton téléphone, puis réessaie.",
+
+  memoryTitle: 'Mémoire',
+  memoryIntro: 'Ce que ChaTin retient de toi entre tes conversations.',
+  memoryEmpty: "ChaTin ne se souvient encore de rien à ton sujet. Il apprend au fil de vos échanges.",
+  memoryDeleteAll: 'Tout effacer',
+  memoryDeleteAllConfirmTitle: 'Effacer tous les souvenirs ?',
+  memoryDeleteAllConfirmMessage: 'ChaTin oubliera tout ce qu’il a appris à ton sujet. Cette action est irréversible.',
+  memoryDeleteAllConfirmButton: 'Effacer',
 
   settingsAbout: 'À propos',
   settingsAboutTagline: 'Le chatbot IA gratuit qui parle français et anglais.',
