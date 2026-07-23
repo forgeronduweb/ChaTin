@@ -267,34 +267,6 @@ export async function listConversations(search?: string) {
   return rows.map((row) => ({ ...row, messageCount: Number(row.messageCount) }));
 }
 
-export async function getConversationDetail(id: string) {
-  const [conversation] = await db
-    .select({ id: conversations.id, title: conversations.title, createdAt: conversations.createdAt })
-    .from(conversations)
-    .where(eq(conversations.id, id));
-  if (!conversation) return undefined;
-
-  const rows = await db
-    .select({
-      id: messages.id,
-      from: messages.from,
-      text: messages.text,
-      attachmentName: messages.attachmentName,
-      reaction: messages.reaction,
-      createdAt: messages.createdAt,
-    })
-    .from(messages)
-    .where(eq(messages.conversationId, id))
-    .orderBy(messages.createdAt);
-
-  return { ...conversation, messages: rows };
-}
-
-export async function deleteConversation(id: string): Promise<boolean> {
-  const deleted = await db.delete(conversations).where(eq(conversations.id, id)).returning({ id: conversations.id });
-  return deleted.length > 0;
-}
-
 export async function listPrompts() {
   return db.select().from(prompts).orderBy(desc(prompts.featured), desc(prompts.createdAt));
 }

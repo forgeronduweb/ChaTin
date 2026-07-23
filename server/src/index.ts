@@ -4,6 +4,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import { adminRouter } from './routes/admin.js';
 import { authRouter } from './routes/auth.js';
 import { chatRouter } from './routes/chat.js';
+import { exportRouter } from './routes/export.js';
 import { feedbackRouter } from './routes/feedback.js';
 import { memoriesRouter } from './routes/memories.js';
 import { promptsRouter } from './routes/prompts.js';
@@ -29,6 +30,7 @@ app.use('/api', releasesRouter);
 app.use('/api', feedbackRouter);
 app.use('/api', transcribeRouter);
 app.use('/api', memoriesRouter);
+app.use('/api', exportRouter);
 app.use(adminRouter);
 
 // Catch-all error handler: anything asyncHandler passes to next(err) lands

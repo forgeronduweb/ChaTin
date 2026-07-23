@@ -5,13 +5,11 @@ import { asyncHandler } from '../async-handler.js';
 import {
   createPrompt,
   createRelease,
-  deleteConversation,
   deleteFeedback,
   deletePrompt,
   deleteRelease,
   deleteUser,
   getAnalyticsReport,
-  getConversationDetail,
   getNotificationCounts,
   getStats,
   isNotificationKey,
@@ -124,30 +122,6 @@ adminRouter.get(
   asyncHandler(async (req, res) => {
     const search = typeof req.query.search === 'string' ? req.query.search : undefined;
     res.json(await listConversations(search));
-  }),
-);
-
-adminRouter.get(
-  '/admin/api/conversations/:id',
-  asyncHandler(async (req, res) => {
-    const conversation = await getConversationDetail(req.params.id);
-    if (!conversation) {
-      res.status(404).json({ error: 'Conversation not found' });
-      return;
-    }
-    res.json(conversation);
-  }),
-);
-
-adminRouter.delete(
-  '/admin/api/conversations/:id',
-  asyncHandler(async (req, res) => {
-    const deleted = await deleteConversation(req.params.id);
-    if (!deleted) {
-      res.status(404).json({ error: 'Conversation not found' });
-      return;
-    }
-    res.status(204).end();
   }),
 );
 

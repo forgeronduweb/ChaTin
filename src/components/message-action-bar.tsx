@@ -1,11 +1,12 @@
 import * as Clipboard from 'expo-clipboard';
 import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
-import { Share, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Share, StyleSheet, View } from 'react-native';
 
 import { AnimatedPressable } from '@/components/animated-pressable';
 import { Brand, Spacing } from '@/constants/theme';
 import { useThemeColors } from '@/contexts/theme-context';
+import { exportTextAsPdf } from '@/lib/export';
 import { t } from '@/lib/i18n';
 
 export type Reaction = 'like' | 'dislike' | null;
@@ -25,6 +26,7 @@ export function MessageActionBar({
 }) {
   const colors = useThemeColors();
   const [copied, setCopied] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   function handleCopy() {
     void Clipboard.setStringAsync(text);
@@ -34,6 +36,18 @@ export function MessageActionBar({
 
   function handleShare() {
     Share.share({ message: text }).catch(() => {});
+  }
+
+  async function handleExportPdf() {
+    if (exportingPdf) return;
+    setExportingPdf(true);
+    try {
+      await exportTextAsPdf(text);
+    } catch (error) {
+      console.error('Failed to export message as PDF:', error);
+    } finally {
+      setExportingPdf(false);
+    }
   }
 
   return (
@@ -55,6 +69,22 @@ export function MessageActionBar({
           name={{ ios: 'square.and.arrow.up', android: 'share', web: 'share' }}
           size={15}
         />
+      </AnimatedPressable>
+
+      <AnimatedPressable
+        accessibilityLabel={t('chatActionExportPdf')}
+        onPress={handleExportPdf}
+        disabled={exportingPdf}
+        style={styles.button}>
+        {exportingPdf ? (
+          <ActivityIndicator size="small" color={Brand.textMuted} />
+        ) : (
+          <SymbolView
+            tintColor={Brand.textMuted}
+            name={{ ios: 'arrow.down.doc', android: 'picture_as_pdf', web: 'picture_as_pdf' }}
+            size={15}
+          />
+        )}
       </AnimatedPressable>
 
       <AnimatedPressable

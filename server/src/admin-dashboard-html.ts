@@ -191,21 +191,6 @@ export const DASHBOARD_HTML = `<!doctype html>
   .checkbox-row { display: flex; align-items: center; gap: 8px; }
   .checkbox-row label { margin: 0; }
   .modal-actions { display: flex; justify-content: flex-end; gap: 14px; margin-top: 24px; }
-
-  .msg-list { display: flex; flex-direction: column; gap: 10px; max-height: 50vh; overflow-y: auto; }
-  .msg-wrap { display: flex; flex-direction: column; gap: 4px; max-width: 85%; }
-  .msg-wrap.msg-wrap-me { align-self: flex-end; align-items: flex-end; }
-  .msg-bubble { padding: 10px 14px; border-radius: 14px; font-size: 13.5px; line-height: 1.4; }
-  .msg-me { background: var(--white); border: 1px solid var(--border); }
-  .msg-bot { background: var(--paper); }
-  .msg-attachment {
-    display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600;
-    color: var(--ink-muted); background: var(--cream); border: 1px solid var(--border);
-    border-radius: 999px; padding: 3px 10px;
-  }
-  .msg-reaction { font-size: 12px; font-weight: 700; }
-  .msg-reaction-like { color: var(--green); }
-  .msg-reaction-dislike { color: var(--red); }
 </style>
 </head>
 <body>
@@ -411,7 +396,7 @@ export const DASHBOARD_HTML = `<!doctype html>
       <div class="panel">
         <table>
           <thead>
-            <tr><th>Titre</th><th>Utilisateur</th><th>Date</th><th>Messages</th><th></th></tr>
+            <tr><th>Titre</th><th>Utilisateur</th><th>Date</th><th>Messages</th></tr>
           </thead>
           <tbody id="conv-body"></tbody>
         </table>
@@ -513,15 +498,6 @@ export const DASHBOARD_HTML = `<!doctype html>
       </div>
     </section>
   </main>
-
-  <!-- Conversation detail modal -->
-  <div class="modal-overlay" id="conv-modal">
-    <div class="modal">
-      <button class="modal-close" data-close="conv-modal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
-      <h2 id="conv-modal-title">Conversation</h2>
-      <div class="msg-list" id="conv-modal-messages"></div>
-    </div>
-  </div>
 
   <!-- Prompt form modal -->
   <div class="modal-overlay" id="prompt-modal">
@@ -865,38 +841,7 @@ export const DASHBOARD_HTML = `<!doctype html>
           <td class="muted">\${c.userName ? escapeHtml(c.userName) : 'Invité'}</td>
           <td class="muted">\${fmtDate(c.createdAt)}</td>
           <td>\${c.messageCount}</td>
-          <td><div class="actions-cell">
-            <button class="btn btn-outline btn-sm" data-action="open-conv" data-id="\${c.id}">Ouvrir</button>
-            <button class="btn btn-danger btn-sm" data-action="delete-conv" data-id="\${c.id}">Supprimer</button>
-          </div></td>
         </tr>\`).join('');
-
-      body.querySelectorAll('[data-action="open-conv"]').forEach((b) => b.addEventListener('click', () => openConversation(b.dataset.id)));
-      body.querySelectorAll('[data-action="delete-conv"]').forEach((b) => b.addEventListener('click', () => deleteConversationRow(b)));
-    }
-
-    async function openConversation(id) {
-      if (!confirm("Vous allez consulter les messages privés d'un utilisateur. Continuer ?")) return;
-      const res = await fetch('/admin/api/conversations/' + id);
-      const conv = await res.json();
-      document.getElementById('conv-modal-title').textContent = conv.title;
-      document.getElementById('conv-modal-messages').innerHTML = conv.messages.map((m) => \`
-        <div class="msg-wrap \${m.from === 'me' ? 'msg-wrap-me' : ''}">
-          \${m.attachmentName ? \`<span class="msg-attachment">📎 \${escapeHtml(m.attachmentName)}</span>\` : ''}
-          <div class="msg-bubble \${m.from === 'me' ? 'msg-me' : 'msg-bot'}">\${escapeHtml(m.text)}</div>
-          \${m.reaction === 'like' ? '<span class="msg-reaction msg-reaction-like">👍 Aimé</span>' : ''}
-          \${m.reaction === 'dislike' ? '<span class="msg-reaction msg-reaction-dislike">👎 Pas aimé</span>' : ''}
-        </div>\`
-      ).join('') || '<p class="muted">Aucun message.</p>';
-      openModal('conv-modal');
-    }
-
-    async function deleteConversationRow(btn) {
-      if (!confirm('Supprimer cette conversation ?')) return;
-      btn.disabled = true;
-      await fetch('/admin/api/conversations/' + btn.dataset.id, { method: 'DELETE' });
-      loadConversations(document.getElementById('conv-search').value);
-      loadStats();
     }
 
     // ---------- Prompts ----------
