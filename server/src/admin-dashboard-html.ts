@@ -119,8 +119,8 @@ export const DASHBOARD_HTML = `<!doctype html>
   .chart-label { font-size: 11px; color: var(--text-muted); font-weight: 600; }
 
   /* Table */
-  .panel { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
-  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .panel { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow-x: auto; }
+  table { width: 100%; min-width: 900px; border-collapse: collapse; font-size: 14px; }
   th, td { text-align: left; padding: 12px 20px; }
   thead th { color: var(--text-muted); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; background: var(--cream); border-bottom: 1px solid var(--border); white-space: nowrap; }
   tbody tr:not(:last-child) td { border-bottom: 1px solid var(--border); }
@@ -535,6 +535,17 @@ export const DASHBOARD_HTML = `<!doctype html>
     </div>
   </div>
 
+  <!-- Confirm modal -->
+  <div class="modal-overlay" id="confirm-modal">
+    <div class="modal" style="max-width:380px">
+      <p id="confirm-modal-message" style="margin:0 0 20px;font-weight:600"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" id="confirm-modal-cancel">Annuler</button>
+        <button type="button" class="btn btn-danger" id="confirm-modal-ok">Supprimer</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Release upload modal -->
   <div class="modal-overlay" id="release-modal">
     <div class="modal">
@@ -814,7 +825,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     }
 
     async function deleteUserRow(btn) {
-      if (!confirm('Supprimer cet utilisateur et toutes ses conversations ?')) return;
+      if (!(await customConfirm('Supprimer cet utilisateur et toutes ses conversations ?'))) return;
       btn.disabled = true;
       await fetch('/admin/api/users/' + btn.dataset.id, { method: 'DELETE' });
       loadUsers(document.getElementById('users-search').value);
@@ -924,7 +935,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     });
 
     async function deletePromptCard(btn) {
-      if (!confirm('Supprimer ce prompt ?')) return;
+      if (!(await customConfirm('Supprimer ce prompt ?'))) return;
       btn.disabled = true;
       await fetch('/admin/api/prompts/' + btn.dataset.id, { method: 'DELETE' });
       loadPrompts();
@@ -993,7 +1004,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     });
 
     async function deleteReleaseRow(btn) {
-      if (!confirm('Supprimer cette version ? Le fichier restera dans le stockage.')) return;
+      if (!(await customConfirm('Supprimer cette version ? Le fichier restera dans le stockage.'))) return;
       btn.disabled = true;
       await fetch('/admin/api/releases/' + btn.dataset.id, { method: 'DELETE' });
       loadReleases();
@@ -1019,7 +1030,7 @@ export const DASHBOARD_HTML = `<!doctype html>
     }
 
     async function deleteFeedbackRow(btn) {
-      if (!confirm('Supprimer ce retour ?')) return;
+      if (!(await customConfirm('Supprimer ce retour ?'))) return;
       btn.disabled = true;
       await fetch('/admin/api/feedback/' + btn.dataset.id, { method: 'DELETE' });
       loadFeedback();
@@ -1028,11 +1039,38 @@ export const DASHBOARD_HTML = `<!doctype html>
     // ---------- Modals ----------
     function openModal(id) { document.getElementById(id).classList.add('open'); }
     function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+    let cancelPendingConfirm = null;
+    function customConfirm(message) {
+      if (cancelPendingConfirm) cancelPendingConfirm();
+      return new Promise((resolve) => {
+        document.getElementById('confirm-modal-message').textContent = message;
+        openModal('confirm-modal');
+        const okBtn = document.getElementById('confirm-modal-ok');
+        const cancelBtn = document.getElementById('confirm-modal-cancel');
+        const cleanup = (result) => {
+          closeModal('confirm-modal');
+          okBtn.removeEventListener('click', onOk);
+          cancelBtn.removeEventListener('click', onCancel);
+          cancelPendingConfirm = null;
+          resolve(result);
+        };
+        const onOk = () => cleanup(true);
+        const onCancel = () => cleanup(false);
+        cancelPendingConfirm = onCancel;
+        okBtn.addEventListener('click', onOk);
+        cancelBtn.addEventListener('click', onCancel);
+      });
+    }
     document.querySelectorAll('[data-close]').forEach((btn) => {
       btn.addEventListener('click', () => closeModal(btn.dataset.close));
     });
     document.querySelectorAll('.modal-overlay').forEach((overlay) => {
-      overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.remove('open'); });
+      overlay.addEventListener('click', (e) => {
+        if (e.target !== overlay) return;
+        if (overlay.id === 'confirm-modal' && cancelPendingConfirm) { cancelPendingConfirm(); return; }
+        overlay.classList.remove('open');
+      });
     });
 
     // ---------- Init ----------
