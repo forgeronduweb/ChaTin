@@ -15,7 +15,7 @@
       "distribution": "internal",
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://147.79.100.48:3001",
+        "EXPO_PUBLIC_API_URL": "https://147-79-100-48.sslip.io",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "554220466641-flhav9pon7kv0g06bk6eics1dl0e24jq.apps.googleusercontent.com"
       },
       "android": {
@@ -25,7 +25,7 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://147.79.100.48:3001",
+        "EXPO_PUBLIC_API_URL": "https://147-79-100-48.sslip.io",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "554220466641-flhav9pon7kv0g06bk6eics1dl0e24jq.apps.googleusercontent.com"
       }
     }
