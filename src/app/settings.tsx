@@ -1,9 +1,8 @@
 import * as Application from 'expo-application';
-import Constants from 'expo-constants';
 import { router, useFocusEffect } from 'expo-router';
 import { SymbolView, type AndroidSymbol, type SFSymbol } from 'expo-symbols';
 import { useCallback, useMemo, useState } from 'react';
-import { Linking, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppDialog, type AppDialogAction } from '@/components/app-dialog';
@@ -313,21 +312,15 @@ export default function SettingsScreen() {
 
         <View>
           <Text style={styles.sectionTitle}>{t('settingsAbout')}</Text>
-          <View style={styles.aboutCard}>
-            <Text style={styles.aboutAppName}>ChaTin</Text>
-            <Text style={styles.aboutTagline}>{t('settingsAboutTagline')}</Text>
-            <Text style={styles.aboutCredit}>{t('settingsAboutCredit')}</Text>
-            <Pressable
-              onPress={() => Linking.openURL(WEBSITE_URL)}
-              style={({ pressed }) => pressed && styles.pressed}>
-              <Text style={styles.aboutLink}>{t('settingsAboutWebsite')}</Text>
-            </Pressable>
-          </View>
+          <Pressable onPress={() => router.push('/about')} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+            <Text style={styles.rowLabel}>ChaTin</Text>
+            <SymbolView
+              tintColor={Brand.textMuted}
+              name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
+              size={16}
+            />
+          </Pressable>
         </View>
-
-        <Text style={styles.versionFooter}>
-          {t('settingsVersion')} {Constants.expoConfig?.version ?? '—'}
-        </Text>
       </ScrollView>
 
       {manualUpdate && <UpdatePrompt update={manualUpdate} onDismiss={() => setManualUpdate(null)} />}
@@ -478,42 +471,6 @@ function createStyles(colors: ThemeColors) {
     },
     destructiveLabel: {
       color: Brand.red,
-    },
-    aboutCard: {
-      backgroundColor: colors.surface,
-      borderRadius: Spacing.four,
-      padding: Spacing.four,
-      gap: Spacing.one,
-    },
-    aboutAppName: {
-      color: colors.text,
-      fontSize: 20,
-      fontFamily: Fonts.bold,
-    },
-    aboutTagline: {
-      color: colors.textSecondary,
-      fontSize: 14,
-      fontFamily: Fonts.regular,
-      lineHeight: 19,
-      marginBottom: Spacing.two,
-    },
-    aboutCredit: {
-      color: Brand.textMuted,
-      fontSize: 12,
-      fontFamily: Fonts.medium,
-    },
-    aboutLink: {
-      color: colors.text,
-      fontSize: 13,
-      fontFamily: Fonts.bold,
-      textDecorationLine: 'underline',
-      marginTop: Spacing.one,
-    },
-    versionFooter: {
-      color: Brand.textMuted,
-      fontSize: 12,
-      fontFamily: Fonts.medium,
-      textAlign: 'center',
     },
     pressed: {
       opacity: 0.8,
