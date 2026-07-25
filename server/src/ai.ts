@@ -1,19 +1,86 @@
+import { extractNewsQuery, extractSportsTeams, extractWeatherCity, generateReply as generateGroqReply } from './groq.js';
 import { generateReply as generateGeminiReply } from './gemini.js';
-import { generateReply as generateGroqReply } from './groq.js';
 import { listMemories } from './memory-store.js';
-import { buildSystemPrompt } from './system-prompt.js';
+import { getRecentNews } from './news.js';
+import { getRecentMatch } from './sports.js';
+import { buildSystemPrompt, type NewsEntry, type WeatherEntry } from './system-prompt.js';
 import type { ChatMessage } from './store.js';
 import { getUserById } from './users-store.js';
+import { getCurrentWeather } from './weather.js';
+
+// Cheap local pre-filters so the (slower, Groq-billed) extraction calls below
+// only run for messages that plausibly need them, not every single message.
+const WEATHER_KEYWORDS =
+  /m[ée]t[ée]o|temps (qu'?il|fait)|quel temps|degr[ée]s?|°c|pleu|neige|orage|ensoleill|nuageux|humidit[ée]|climat|weather|forecast|temperature|humidity|rain(s|ing|y)?|snow(s|ing|y)?|sunny|cloudy/i;
+const NEWS_KEYWORDS =
+  /actualit|nouvelles?|derni[èe]res? (infos?|nouvelles?)|que se passe|info sur|news|breaking|headlines?|what'?s happening|latest on|r[ée]sultats?|score|match|classement|standings?|qui a gagn[ée]|who won/i;
+const FRENCH_HINT = /[éèàçùâêîôûëïü]|qu'est|c'est|les |des |quel/i;
+
+function looksLikeWeatherQuestion(text: string): boolean {
+  return WEATHER_KEYWORDS.test(text);
+}
+
+function looksLikeNewsQuestion(text: string): boolean {
+  return NEWS_KEYWORDS.test(text);
+}
+
+function detectLanguage(text: string): 'fr' | 'en' {
+  return FRENCH_HINT.test(text) ? 'fr' : 'en';
+}
 
 export async function generateReply(history: ChatMessage[], userId?: string): Promise<string> {
-  let systemPrompt = buildSystemPrompt([]);
-  if (userId) {
-    const [memories, user] = await Promise.all([listMemories(userId), getUserById(userId)]);
-    systemPrompt = buildSystemPrompt(
-      memories.map((memory) => memory.content),
-      user?.city,
-    );
+  const lastUserMessage = [...history].reverse().find((message) => message.from === 'me')?.text ?? '';
+
+  const [memories, user] = userId
+    ? await Promise.all([listMemories(userId), getUserById(userId)])
+    : [[], undefined];
+
+  let askedCity: string | null = null;
+  if (looksLikeWeatherQuestion(lastUserMessage) && process.env.GROQ_API_KEY) {
+    try {
+      askedCity = await extractWeatherCity(lastUserMessage);
+    } catch (error) {
+      console.error('Weather city extraction failed:', error);
+    }
   }
+
+  let newsQuery: string | null = null;
+  let sportsTeams: Awaited<ReturnType<typeof extractSportsTeams>> = null;
+  if (looksLikeNewsQuestion(lastUserMessage) && process.env.GROQ_API_KEY) {
+    const [newsResult, sportsResult] = await Promise.allSettled([
+      extractNewsQuery(lastUserMessage),
+      extractSportsTeams(lastUserMessage),
+    ]);
+    if (newsResult.status === 'fulfilled') newsQuery = newsResult.value;
+    else console.error('News query extraction failed:', newsResult.reason);
+    if (sportsResult.status === 'fulfilled') sportsTeams = sportsResult.value;
+    else console.error('Sports teams extraction failed:', sportsResult.reason);
+  }
+
+  const [ownWeather, askedWeather, news, matchResult] = await Promise.all([
+    user?.city ? getCurrentWeather(user.city) : Promise.resolve(null),
+    askedCity && askedCity.toLowerCase() !== user?.city?.toLowerCase() ? getCurrentWeather(askedCity) : Promise.resolve(null),
+    newsQuery !== null ? getRecentNews(newsQuery, detectLanguage(lastUserMessage)) : Promise.resolve(null),
+    sportsTeams ? getRecentMatch(sportsTeams.sport, sportsTeams.team1, sportsTeams.team2) : Promise.resolve(null),
+  ]);
+  const weatherEntries: WeatherEntry[] = [];
+  if (ownWeather && user?.city) weatherEntries.push({ label: `the user's city (${user.city})`, data: ownWeather });
+  if (askedWeather && askedCity) weatherEntries.push({ label: askedCity, data: askedWeather });
+
+  const newsEntries: NewsEntry[] | undefined = news?.map((item) => ({
+    title: item.title,
+    description: item.description,
+    source: item.source,
+    pubDate: item.pubDate,
+  }));
+
+  const systemPrompt = buildSystemPrompt(
+    memories.map((memory) => memory.content),
+    user?.city,
+    weatherEntries,
+    newsEntries,
+    matchResult,
+  );
 
   if (process.env.GEMINI_API_KEY) {
     try {

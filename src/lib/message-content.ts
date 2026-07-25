@@ -7,11 +7,32 @@ export type ChartSpec = {
   series: { label: string; values: number[] }[];
 };
 
+export const WEATHER_CONDITIONS = [
+  'clear',
+  'partly-cloudy',
+  'cloudy',
+  'fog',
+  'drizzle',
+  'rain',
+  'snow',
+  'thunderstorm',
+] as const;
+export type WeatherCondition = (typeof WEATHER_CONDITIONS)[number];
+
+export type WeatherSpec = {
+  city: string;
+  condition: WeatherCondition;
+  temperatureC: number;
+  windKph?: number;
+  humidityPct?: number;
+};
+
 export type MessageSegment =
   | { type: 'paragraph'; inlines: InlineSpan[] }
   | { type: 'code'; language: string; code: string }
   | { type: 'table'; headers: string[]; alignments: ('left' | 'center' | 'right')[]; rows: string[][] }
-  | { type: 'chart'; chart: ChartSpec };
+  | { type: 'chart'; chart: ChartSpec }
+  | { type: 'weather'; weather: WeatherSpec };
 
 const FENCE_REGEX = /```(\w+)?\n([\s\S]*?)```/g;
 const SEPARATOR_LINE = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
@@ -34,6 +55,9 @@ export function parseMessageContent(raw: string): MessageSegment[] {
     if (lang === 'chart') {
       const chart = tryParseChart(body);
       segments.push(chart ? { type: 'chart', chart } : { type: 'code', language: 'json', code: body });
+    } else if (lang === 'weather') {
+      const weather = tryParseWeather(body);
+      segments.push(weather ? { type: 'weather', weather } : { type: 'code', language: 'json', code: body });
     } else {
       segments.push({ type: 'code', language: lang || 'text', code: body });
     }
@@ -72,6 +96,33 @@ function tryParseChart(body: string): ChartSpec | null {
       title: typeof data.title === 'string' ? data.title : undefined,
       labels: data.labels,
       series,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function tryParseWeather(body: string): WeatherSpec | null {
+  try {
+    const data = JSON.parse(body) as {
+      city?: unknown;
+      condition?: unknown;
+      temperatureC?: unknown;
+      windKph?: unknown;
+      humidityPct?: unknown;
+    };
+    if (typeof data.city !== 'string' || !data.city) return null;
+    if (typeof data.condition !== 'string' || !(WEATHER_CONDITIONS as readonly string[]).includes(data.condition)) {
+      return null;
+    }
+    if (typeof data.temperatureC !== 'number') return null;
+
+    return {
+      city: data.city,
+      condition: data.condition as WeatherCondition,
+      temperatureC: data.temperatureC,
+      windKph: typeof data.windKph === 'number' ? data.windKph : undefined,
+      humidityPct: typeof data.humidityPct === 'number' ? data.humidityPct : undefined,
     };
   } catch {
     return null;

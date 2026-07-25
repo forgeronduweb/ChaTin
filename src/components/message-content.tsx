@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { ChatChart } from '@/components/chat-chart';
 import { CodeBlock } from '@/components/code-block';
 import { DataTable } from '@/components/data-table';
+import { WeatherCard } from '@/components/weather-card';
 import { Fonts, type ThemeColors } from '@/constants/theme';
 import { useThemeColors } from '@/contexts/theme-context';
 import { parseMessageContent, type InlineSpan } from '@/lib/message-content';
@@ -31,6 +32,8 @@ export const MessageContent = memo(function MessageContent({ text }: { text: str
             return <DataTable key={index} headers={segment.headers} alignments={segment.alignments} rows={segment.rows} />;
           case 'chart':
             return <ChatChart key={index} chart={segment.chart} />;
+          case 'weather':
+            return <WeatherCard key={index} weather={segment.weather} />;
           default:
             return null;
         }
