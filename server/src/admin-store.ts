@@ -295,6 +295,29 @@ export async function deletePrompt(id: string): Promise<boolean> {
   return deleted.length > 0;
 }
 
+// Sampled for the auto-generated prompts job (see auto-prompts.ts) to ground
+// suggestions in what people actually ask, alongside fresh web trends.
+export async function getRecentUserMessageTexts(limit: number): Promise<string[]> {
+  const rows = await db
+    .select({ text: messages.text })
+    .from(messages)
+    .where(eq(messages.from, 'me'))
+    .orderBy(desc(messages.createdAt))
+    .limit(limit);
+  return rows.map((row) => row.text);
+}
+
+// Wholesale-replaces every 'auto' prompt with a fresh batch, leaving
+// admin-curated ('admin') rows untouched.
+export async function replaceAutoPrompts(inputs: PromptInput[]): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx.delete(prompts).where(eq(prompts.source, 'auto'));
+    if (inputs.length > 0) {
+      await tx.insert(prompts).values(inputs.map((input) => ({ ...input, source: 'auto' as const })));
+    }
+  });
+}
+
 export async function listFeedback() {
   const rows = await db
     .select({

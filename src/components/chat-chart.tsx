@@ -1,8 +1,11 @@
-import { Fragment, useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import * as Sharing from 'expo-sharing';
+import { SymbolView } from 'expo-symbols';
+import { Fragment, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Line as SvgLine, Path, Rect, Text as SvgText } from 'react-native-svg';
+import { captureRef } from 'react-native-view-shot';
 
-import { Fonts, Spacing, type ThemeColors } from '@/constants/theme';
+import { Brand, Fonts, Spacing, type ThemeColors } from '@/constants/theme';
 import { useThemeColors } from '@/contexts/theme-context';
 import { t } from '@/lib/i18n';
 import type { ChartSpec } from '@/lib/message-content';
@@ -24,23 +27,55 @@ function shouldShowLabel(index: number, total: number) {
 export function ChatChart({ chart }: { chart: ChartSpec }) {
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const captureViewRef = useRef<View>(null);
+  const [exporting, setExporting] = useState(false);
+
+  async function handleExportImage() {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const uri = await captureRef(captureViewRef, { format: 'png', quality: 1 });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri);
+      }
+    } catch (error) {
+      console.error('Failed to export chart as image:', error);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
-    <View style={styles.wrap}>
-      {chart.title ? <Text style={styles.title}>{chart.title}</Text> : null}
-      {chart.type === 'bar' && <BarChart chart={chart} colors={colors} />}
-      {chart.type === 'line' && <LineChart chart={chart} colors={colors} />}
-      {chart.type === 'pie' && <PieChart chart={chart} colors={colors} styles={styles} />}
-      {chart.type !== 'pie' && chart.series.length > 1 && (
-        <View style={styles.legendRow}>
-          {chart.series.map((series, index) => (
-            <View key={series.label} style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: PALETTE[index % PALETTE.length] }]} />
-              <Text style={styles.legendText}>{series.label}</Text>
-            </View>
-          ))}
-        </View>
-      )}
+    <View>
+      <View ref={captureViewRef} collapsable={false} style={styles.wrap}>
+        {chart.title ? <Text style={styles.title}>{chart.title}</Text> : null}
+        {chart.type === 'bar' && <BarChart chart={chart} colors={colors} />}
+        {chart.type === 'line' && <LineChart chart={chart} colors={colors} />}
+        {chart.type === 'pie' && <PieChart chart={chart} colors={colors} styles={styles} />}
+        {chart.type !== 'pie' && chart.series.length > 1 && (
+          <View style={styles.legendRow}>
+            {chart.series.map((series, index) => (
+              <View key={series.label} style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: PALETTE[index % PALETTE.length] }]} />
+                <Text style={styles.legendText}>{series.label}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+
+      <Pressable
+        onPress={handleExportImage}
+        disabled={exporting}
+        accessibilityLabel={t('chatActionExportChart')}
+        style={({ pressed }) => [styles.exportButton, pressed && styles.exportButtonPressed]}>
+        {exporting ? (
+          <ActivityIndicator size="small" color={Brand.textMuted} />
+        ) : (
+          <SymbolView tintColor={Brand.textMuted} name={{ ios: 'square.and.arrow.down', android: 'download', web: 'download' }} size={13} />
+        )}
+        <Text style={styles.exportButtonText}>{t('chatActionExportChart')}</Text>
+      </Pressable>
     </View>
   );
 }
@@ -245,6 +280,22 @@ function createStyles(colors: ThemeColors) {
       fontSize: 12,
       fontFamily: Fonts.medium,
       flexShrink: 1,
+    },
+    exportButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+      gap: 5,
+      marginTop: Spacing.one,
+      paddingVertical: 4,
+    },
+    exportButtonPressed: {
+      opacity: 0.6,
+    },
+    exportButtonText: {
+      color: Brand.textMuted,
+      fontSize: 12,
+      fontFamily: Fonts.semiBold,
     },
   });
 }

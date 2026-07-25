@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import cors from 'cors';
 import express, { type NextFunction, type Request, type Response } from 'express';
+import { scheduleAutoPromptGeneration } from './auto-prompts.js';
 import { adminRouter } from './routes/admin.js';
 import { authRouter } from './routes/auth.js';
 import { chatRouter } from './routes/chat.js';
@@ -46,3 +47,5 @@ const port = Number(process.env.PORT) || 3001;
 app.listen(port, () => {
   console.log(`Server listening on http://localhost:${port}`);
 });
+
+scheduleAutoPromptGeneration();

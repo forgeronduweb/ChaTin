@@ -1,27 +1,31 @@
 import { useEffect } from 'react';
-import { Image, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+import Svg, { Path } from 'react-native-svg';
 
-// The flower mark's petals are mostly a pale cream - fine on the solid dark
-// badge it used to sit on, but invisible once that fill is removed. There's
-// no vector source to add a per-petal stroke to, so this fakes one: several
-// offset black silhouettes (via `tintColor`, which recolors the opaque
-// pixels while keeping the alpha shape) stacked under the original art,
-// tracing a dark edge around every petal - including the gaps between them.
-const OUTLINE_OFFSETS: [number, number][] = [
-  [-1.3, 0],
-  [1.3, 0],
-  [0, -1.3],
-  [0, 1.3],
-  [-0.9, -0.9],
-  [0.9, -0.9],
-  [-0.9, 0.9],
-  [0.9, 0.9],
+import { Brand } from '@/constants/theme';
+
+const PETAL_CREAM = '#FAF3DC';
+
+// 8 petals, evenly spaced but rotated a half-step off the cardinal axes so a
+// gap always sits dead center at top (and bottom/left/right) instead of a
+// petal tip - the same asymmetric 3-color accent placement as the brand mark.
+const PETALS: { angle: number; color: string }[] = [
+  { angle: -22.5, color: PETAL_CREAM },
+  { angle: 22.5, color: PETAL_CREAM },
+  { angle: 67.5, color: Brand.green },
+  { angle: 112.5, color: Brand.yellow },
+  { angle: 157.5, color: PETAL_CREAM },
+  { angle: 202.5, color: PETAL_CREAM },
+  { angle: 247.5, color: Brand.pink },
+  { angle: 292.5, color: PETAL_CREAM },
 ];
+
+// One petal, tip pointing straight up, drawn in a 100x100 box centered on
+// (50,50) - reused for the full ring by rotating this same path per petal.
+const PETAL_PATH = 'M50 48 C41 42 36 26 40 15 C42 8 46 4 50 4 C54 4 58 8 60 15 C64 26 59 42 50 48 Z';
 
 export function OutlinedFlower({ size, spin }: { size: number; spin?: boolean }) {
   const rotation = useSharedValue(0);
-  const flowerSize = size * 0.7;
 
   useEffect(() => {
     if (!spin) return;
@@ -34,22 +38,19 @@ export function OutlinedFlower({ size, spin }: { size: number; spin?: boolean })
 
   return (
     <Animated.View style={[{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }, animatedStyle]}>
-      <View style={{ width: flowerSize, height: flowerSize }}>
-        {OUTLINE_OFFSETS.map(([dx, dy], index) => (
-          <Image
-            key={index}
-            source={require('@/assets/images/flower_only_1024.png')}
-            resizeMode="contain"
-            tintColor="#161616"
-            style={{ position: 'absolute', left: dx, top: dy, width: flowerSize, height: flowerSize }}
+      <Svg width={size * 0.78} height={size * 0.78} viewBox="0 0 100 100">
+        {PETALS.map(({ angle, color }) => (
+          <Path
+            key={angle}
+            d={PETAL_PATH}
+            fill={color}
+            stroke={Brand.ink}
+            strokeWidth={2.5}
+            strokeLinejoin="round"
+            transform={`rotate(${angle} 50 50)`}
           />
         ))}
-        <Image
-          source={require('@/assets/images/flower_only_1024.png')}
-          resizeMode="contain"
-          style={{ position: 'absolute', left: 0, top: 0, width: flowerSize, height: flowerSize }}
-        />
-      </View>
+      </Svg>
     </Animated.View>
   );
 }

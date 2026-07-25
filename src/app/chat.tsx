@@ -216,11 +216,13 @@ function ChatInputBar({
 
 function MessageActionPopover({
   anchor,
+  showEdit,
   onModify,
   onCopy,
   onDismiss,
 }: {
   anchor: { y: number } | null;
+  showEdit: boolean;
   onModify: () => void;
   onCopy: () => void;
   onDismiss: () => void;
@@ -235,13 +237,17 @@ function MessageActionPopover({
         <Animated.View
           entering={FadeInUp.duration(140)}
           style={[styles.popover, { top: anchor.y, right: Spacing.four }]}>
-          <Pressable
-            onPress={onModify}
-            style={({ pressed }) => [styles.popoverRow, pressed && styles.pressed]}>
-            <SymbolView tintColor={Brand.ink} name={{ ios: 'pencil', android: 'edit', web: 'edit' }} size={15} />
-            <Text style={styles.popoverRowText}>{t('chatEditMessage')}</Text>
-          </Pressable>
-          <View style={styles.popoverDivider} />
+          {showEdit && (
+            <>
+              <Pressable
+                onPress={onModify}
+                style={({ pressed }) => [styles.popoverRow, pressed && styles.pressed]}>
+                <SymbolView tintColor={Brand.ink} name={{ ios: 'pencil', android: 'edit', web: 'edit' }} size={15} />
+                <Text style={styles.popoverRowText}>{t('chatEditMessage')}</Text>
+              </Pressable>
+              <View style={styles.popoverDivider} />
+            </>
+          )}
           <Pressable
             onPress={onCopy}
             style={({ pressed }) => [styles.popoverRow, pressed && styles.pressed]}>
@@ -303,7 +309,11 @@ const MessageBubble = memo(function MessageBubble({
           </View>
           <Text style={styles.botLabel}>ChaTin</Text>
         </View>
-        <MessageContent text={message.text} />
+        <Pressable
+          onLongPress={canLongPress ? (event) => onLongPress(event.nativeEvent.pageY) : undefined}
+          delayLongPress={350}>
+          <MessageContent text={message.text} />
+        </Pressable>
         <MessageActionBar
           text={message.text}
           reaction={reaction}
@@ -389,7 +399,7 @@ export default function ChatScreen() {
     title: stored?.title ?? title ?? null,
   });
   const { messages, sending } = session;
-  const [popoverFor, setPopoverFor] = useState<{ id: string; y: number } | null>(null);
+  const [popoverFor, setPopoverFor] = useState<{ id: string; y: number; canEdit: boolean } | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
   const [showCopiedToast, setShowCopiedToast] = useState(false);
@@ -695,8 +705,8 @@ export default function ChatScreen() {
         onConfirmEdit={handleConfirmEdit}
         onCancelEdit={handleCancelEdit}
         editInputRef={editInputRef}
-        canLongPress={item.id === lastUserMessageId && !sending}
-        onLongPress={(y) => setPopoverFor({ id: item.id, y })}
+        canLongPress={!sending}
+        onLongPress={(y) => setPopoverFor({ id: item.id, y, canEdit: item.from === 'me' && item.id === lastUserMessageId })}
         reaction={item.reaction ?? null}
         onReact={(reaction) => handleReact(item.id, reaction)}
         isSpeaking={speakingMessageId === item.id}
@@ -862,7 +872,9 @@ export default function ChatScreen() {
           />
 
           {showIntroLogo && (
-            <Animated.View style={[styles.introOverlay, heroWrapperStyle]} pointerEvents="none">
+            <Animated.View
+              style={[styles.introOverlay, { bottom: inputBarHeight + keyboardHeight }, heroWrapperStyle]}
+              pointerEvents="none">
               <View style={styles.heroRow}>
                 <Animated.View style={[styles.emptyLogoBadge, heroBadgeStyle]}>
                   <OutlinedFlower size={88} spin={heroSpinning} />
@@ -948,6 +960,7 @@ export default function ChatScreen() {
 
       <MessageActionPopover
         anchor={popoverFor}
+        showEdit={popoverFor?.canEdit ?? false}
         onModify={handleStartEdit}
         onCopy={handleCopyMessage}
         onDismiss={() => setPopoverFor(null)}
