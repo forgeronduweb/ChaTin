@@ -7,5 +7,16 @@ if (!connectionString) {
   throw new Error('DATABASE_URL is not set. Add it to server/.env (see server/.env.example).');
 }
 
-const client = postgres(connectionString, { prepare: false, ssl: 'require' });
+const client = postgres(connectionString, {
+  prepare: false,
+  ssl: 'require',
+  // Supabase's transaction pooler (port 6543) caps concurrent connections
+  // fairly low - without these, a query that can't get a slot right away
+  // just waits forever instead of failing, which is what made some admin
+  // dashboard requests (users/notifications/releases) hang as "pending"
+  // when several fired at once on page load.
+  max: 5,
+  idle_timeout: 20,
+  connect_timeout: 10,
+});
 export const db = drizzle(client, { schema });
