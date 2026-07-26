@@ -138,6 +138,14 @@ export const DASHBOARD_HTML = `<!doctype html>
   .conv-title-cell {
     max-width: 360px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
+  /* Keeps the actions column visible without having to scroll the wide
+     Utilisateurs table all the way right to reach the buttons. */
+  .sticky-actions {
+    position: sticky; right: 0;
+    background: var(--white);
+    box-shadow: -6px 0 6px -6px rgba(0,0,0,0.12);
+  }
+  thead th.sticky-actions { background: var(--cream); }
 
   .badge { display: inline-block; padding: 3px 11px; border-radius: 999px; font-size: 11px; font-weight: 700; }
   .badge-active { background: rgba(63,190,122,0.15); color: #1F8A50; }
@@ -381,7 +389,7 @@ export const DASHBOARD_HTML = `<!doctype html>
       <div class="panel">
         <table>
           <thead>
-            <tr><th>Utilisateur</th><th>Email</th><th>Appareil</th><th>Inscrit le</th><th>Dernière connexion</th><th>Conv.</th><th>Msgs</th><th>Statut</th><th></th></tr>
+            <tr><th>Utilisateur</th><th>Email</th><th>Appareil</th><th>Inscrit le</th><th>Dernière connexion</th><th>Conv.</th><th>Msgs</th><th>Statut</th><th class="sticky-actions"></th></tr>
           </thead>
           <tbody id="users-body"></tbody>
         </table>
@@ -813,7 +821,7 @@ export const DASHBOARD_HTML = `<!doctype html>
           <td>\${u.conversationCount}</td>
           <td>\${u.messageCount}</td>
           <td>\${statusBadge}</td>
-          <td><div class="actions-cell">\${toggleBtn}<button class="btn btn-danger btn-sm" data-action="delete-user" data-id="\${u.id}">Supprimer</button></div></td>
+          <td class="sticky-actions"><div class="actions-cell">\${toggleBtn}<button class="btn btn-danger btn-sm" data-action="delete-user" data-id="\${u.id}">Supprimer</button></div></td>
         </tr>\`;
       }).join('');
 
