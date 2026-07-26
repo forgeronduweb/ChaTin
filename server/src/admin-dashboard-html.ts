@@ -185,7 +185,7 @@ export const DASHBOARD_HTML = `<!doctype html>
   .modal-close svg { width: 16px; height: 16px; }
   .form-row { margin-bottom: 14px; }
   .form-row label { display: block; font-size: 12px; font-weight: 700; color: var(--ink-muted); margin-bottom: 6px; }
-  .color-swatches { display: flex; gap: 8px; margin-top: 6px; }
+  .color-swatches { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
   .swatch { width: 26px; height: 26px; border-radius: 50%; cursor: pointer; border: 3px solid transparent; }
   .swatch.selected { border-color: var(--ink); }
   .checkbox-row { display: flex; align-items: center; gap: 8px; }
@@ -581,7 +581,8 @@ export const DASHBOARD_HTML = `<!doctype html>
   </div>
 
   <script>
-    const COLORS = ['#F6C445', '#F3A7C7', '#3FBE7A', '#8EC5FC', '#C9A7F3'];
+    // Keep in sync with CARD_COLORS in server/src/auto-prompts.ts.
+    const COLORS = ['#F6C445', '#F3A7C7', '#3FBE7A', '#8EC5FC', '#C9A7F3', '#FFB4A2', '#FFD6A5', '#A0E7E5', '#B8E0D2'];
     const PALETTE = ['#2a78d6', '#008300', '#e87ba4', '#eda100', '#1baf7a', '#eb6834', '#4a3aa7', '#e34948'];
 
     // ---------- Navigation ----------

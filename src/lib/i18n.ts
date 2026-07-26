@@ -13,6 +13,8 @@ const en = {
   homeGeneratedBy: 'Generate by\n{author}',
   homeUsePrompt: 'Use this prompt',
   historyEmpty: 'No conversations yet',
+  historyToday: 'Today',
+  historyYesterday: 'Yesterday',
   homePromptSushiTitle: 'Explain about Sushi Roll receipt',
   homePromptResolutionTitle: 'Give the best resolution for 2024',
 
@@ -41,6 +43,8 @@ const en = {
   chatLoadingAlmost: 'Almost there…',
   chatCodeLanguageText: 'Text',
   chatChartOther: 'Other',
+  chatShowMore: 'Show more',
+  chatShowLess: 'Show less',
 
   loginTitle: 'Sign in to ChaTin',
   loginSubtitle:
@@ -211,6 +215,8 @@ const fr: Record<keyof typeof en, string> = {
   homeGeneratedBy: 'Généré par\n{author}',
   homeUsePrompt: 'Utiliser ce prompt',
   historyEmpty: 'Aucune conversation pour l’instant',
+  historyToday: 'Aujourd’hui',
+  historyYesterday: 'Hier',
   homePromptSushiTitle: 'Explique la recette des sushis',
   homePromptResolutionTitle: 'Donne la meilleure résolution pour 2024',
 
@@ -240,6 +246,8 @@ const fr: Record<keyof typeof en, string> = {
   chatLoadingAlmost: 'Presque prêt…',
   chatCodeLanguageText: 'Texte',
   chatChartOther: 'Autres',
+  chatShowMore: 'Voir plus',
+  chatShowLess: 'Voir moins',
 
   loginTitle: 'Connecte-toi à ChaTin',
   loginSubtitle:

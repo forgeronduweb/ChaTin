@@ -15,6 +15,9 @@ import Animated, {
   FadeIn,
   FadeInUp,
   FadeOut,
+  interpolate,
+  interpolateColor,
+  LinearTransition,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
@@ -80,6 +83,17 @@ function SpinningFlower({ size }: { size: number }) {
 
 const LOADING_STATUS_KEYS = ['chatLoadingThinking', 'chatLoadingGenerating', 'chatLoadingAlmost'] as const;
 
+const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
+
+// The chat input's height grows with its content between these two bounds,
+// then scrolls internally past the max instead of growing further.
+const INPUT_MIN_HEIGHT = 48;
+const INPUT_MAX_HEIGHT = 220;
+const INPUT_ANIM_CONFIG = { duration: 240, easing: Easing.out(Easing.cubic) };
+
+// A sent message longer than this collapses behind a "Show more" toggle.
+const MESSAGE_TEXT_MAX_LINES = 12;
+
 // Cycles through a few status phrases with a soft cross-fade, like ChatGPT's
 // "Thinking…" / "Generating…" hints - just enough motion to read as a live
 // process rather than a frozen spinner, without claiming any real progress.
@@ -133,10 +147,92 @@ function ChatInputBar({
 }) {
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  // Plain CSS maxHeight on a multiline TextInput isn't reliably enforced on
+  // Android - the field just keeps growing with the content. Measuring the
+  // actual content height and clamping it in JS works everywhere.
+  const [inputHeight, setInputHeight] = useState(INPUT_MIN_HEIGHT);
+  // Only the wide, shadowed "ChatGPT" card once the message has wrapped to
+  // more than one line - a short message keeps the original compact row
+  // (separate small attach/send circles either side of a slim pill).
+  //
+  // This is deliberately NOT a plain `inputHeight > threshold` expression.
+  // Right around the 1-to-2-line boundary that comparison flip-flops on
+  // every keystroke: entering the second line, isExpanded would go true,
+  // and (before the fix below) that in turn used to shrink the field's own
+  // horizontal padding, which widened the wrappable area enough to pull the
+  // text back onto one line, flipping isExpanded false again - an actual
+  // layout feedback loop, not just measurement noise, and it read as the
+  // whole bar trembling. Two changes fix it: the input's horizontal padding
+  // no longer depends on expand state (see inputAnimatedStyle) so resizing
+  // the bar can no longer change how the text wraps, and enter/exit use
+  // different thresholds (hysteresis) so being exactly on the boundary
+  // can't toggle the state back and forth by itself.
+  const [isExpanded, setIsExpanded] = useState(false);
+  useEffect(() => {
+    const hasText = draft.trim().length > 0;
+    if (!hasText) {
+      setIsExpanded(false);
+    } else if (!isExpanded && inputHeight > INPUT_MIN_HEIGHT + 14) {
+      setIsExpanded(true);
+    } else if (isExpanded && inputHeight <= INPUT_MIN_HEIGHT + 6) {
+      setIsExpanded(false);
+    }
+  }, [draft, inputHeight, isExpanded]);
+
+  // Drives the compact <-> expanded cross-fade/resize, and smooths out the
+  // field's own height growth so it eases into place instead of snapping
+  // with every keystroke. Both share the same duration/easing (see
+  // INPUT_ANIM_CONFIG) on purpose - when they run out of sync (e.g. the
+  // field's height settling faster than the card's background/padding
+  // growing around it) the card visibly "catches up" a beat later, which
+  // reads as a jarring double-motion instead of one smooth resize.
+  const expandProgress = useSharedValue(0);
+  const animatedHeight = useSharedValue(INPUT_MIN_HEIGHT);
+  useEffect(() => {
+    expandProgress.value = withTiming(isExpanded ? 1 : 0, INPUT_ANIM_CONFIG);
+  }, [isExpanded, expandProgress]);
+  useEffect(() => {
+    animatedHeight.value = withTiming(inputHeight, INPUT_ANIM_CONFIG);
+  }, [inputHeight, animatedHeight]);
+
+  // Nothing here may touch a width-affecting property (paddingHorizontal,
+  // gap, or any child's width) - see the isExpanded comment above. Even a
+  // few px there changes how much room the text has to wrap in, which used
+  // to feed back into the very measurement that decides isExpanded. Only
+  // height/vertical padding/color/radius/shadow animate; every horizontal
+  // dimension in this row is a fixed constant in both states.
+  const containerAnimatedStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(expandProgress.value, [0, 1], ['rgba(0,0,0,0)', colors.surfaceElevated]),
+    borderRadius: Spacing.five,
+    paddingVertical: interpolate(expandProgress.value, [0, 1], [0, Spacing.two]),
+    shadowOpacity: interpolate(expandProgress.value, [0, 1], [0, 0.1]),
+    shadowRadius: interpolate(expandProgress.value, [0, 1], [0, 12]),
+    elevation: interpolate(expandProgress.value, [0, 1], [0, 4]),
+  }));
+  const attachAnimatedStyle = useAnimatedStyle(() => ({
+    height: interpolate(expandProgress.value, [0, 1], [44, 40]),
+    borderRadius: interpolate(expandProgress.value, [0, 1], [22, 20]),
+    backgroundColor: interpolateColor(expandProgress.value, [0, 1], [colors.surface, 'rgba(0,0,0,0)']),
+  }));
+  const sendAnimatedStyle = useAnimatedStyle(() => ({
+    height: interpolate(expandProgress.value, [0, 1], [48, 40]),
+    borderRadius: interpolate(expandProgress.value, [0, 1], [24, 20]),
+  }));
+  const inputAnimatedStyle = useAnimatedStyle(() => ({
+    height: animatedHeight.value,
+    backgroundColor: interpolateColor(expandProgress.value, [0, 1], [colors.surfaceElevated, 'rgba(0,0,0,0)']),
+    borderRadius: interpolate(expandProgress.value, [0, 1], [Spacing.five, 0]),
+    // Horizontal padding stays fixed (not interpolated) on purpose - see the
+    // isExpanded comment above. Letting it shrink with expandProgress used
+    // to change the text's wrappable width, which fed back into the very
+    // measurement that decides isExpanded.
+    paddingHorizontal: Spacing.three,
+    paddingVertical: interpolate(expandProgress.value, [0, 1], [Spacing.three, Spacing.two + 2]),
+  }));
 
   if (isRecording) {
     return (
-      <View style={[styles.inputRow, { paddingBottom: Spacing.three + bottomPadding }]}>
+      <View style={[styles.inputRow, { gap: Spacing.two, paddingBottom: Spacing.three + bottomPadding }]}>
         <View style={styles.recordingIndicator}>
           <View style={styles.recordingDot} />
           <Text style={styles.recordingText}>{t('chatRecording')}</Text>
@@ -146,7 +242,7 @@ function ChatInputBar({
           style={({ pressed }) => [styles.recordingCancelButton, pressed && styles.pressed]}>
           <SymbolView tintColor={Brand.textMuted} name={{ ios: 'trash', android: 'delete', web: 'delete' }} size={18} />
         </Pressable>
-        <AnimatedPressable onPress={onStopRecording} style={styles.sendButton}>
+        <AnimatedPressable onPress={onStopRecording} style={[styles.sendButton, styles.sendButtonSize]}>
           <SymbolView tintColor={Brand.ink} name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={18} />
         </AnimatedPressable>
       </View>
@@ -177,38 +273,54 @@ function ChatInputBar({
         </View>
       )}
       <View style={styles.inputRow}>
-        <Pressable onPress={onAttach} style={({ pressed }) => [styles.attachButton, pressed && styles.pressed]}>
-          <SymbolView tintColor={colors.text} name={{ ios: 'paperclip', android: 'attach_file', web: 'attach_file' }} size={18} />
-        </Pressable>
-        <TextInput
-          value={draft}
-          onChangeText={onChangeDraft}
-          placeholder={t('chatPlaceholder')}
-          placeholderTextColor={Brand.textMuted}
-          style={styles.input}
-          onSubmitEditing={onSend}
-          returnKeyType="send"
-        />
-        {draft.trim() || attachedFile ? (
-          <AnimatedPressable onPress={onSend} style={styles.sendButton}>
-            <SymbolView
-              tintColor={Brand.ink}
-              name={{ ios: 'arrow.up', android: 'arrow_upward', web: 'arrow_upward' }}
-              size={18}
-            />
-          </AnimatedPressable>
-        ) : (
-          <AnimatedPressable
-            onPress={onStartRecording}
-            disabled={isTranscribing}
-            style={[styles.sendButton, isTranscribing && styles.sendButtonDisabled]}>
-            {isTranscribing ? (
-              <SpinningFlower size={20} />
-            ) : (
-              <SymbolView tintColor={Brand.ink} name={{ ios: 'mic.fill', android: 'mic', web: 'mic' }} size={18} />
-            )}
-          </AnimatedPressable>
-        )}
+        <Animated.View style={[styles.inputContainer, containerAnimatedStyle]}>
+          <Animated.View style={[styles.attachButtonSizer, attachAnimatedStyle]}>
+            <Pressable
+              onPress={onAttach}
+              style={({ pressed }) => [styles.attachButtonFill, pressed && styles.pressed]}>
+              <SymbolView tintColor={colors.text} name={{ ios: 'paperclip', android: 'attach_file', web: 'attach_file' }} size={18} />
+            </Pressable>
+          </Animated.View>
+          <AnimatedTextInput
+            value={draft}
+            onChangeText={onChangeDraft}
+            placeholder={t('chatPlaceholder')}
+            placeholderTextColor={Brand.textMuted}
+            style={[styles.input, inputAnimatedStyle]}
+            multiline
+            // numberOfLines maps directly to Android's native maxLines - the
+            // reliable way to cap a multiline EditText's height there; the
+            // style.height clamp (from onContentSizeChange) covers iOS, where
+            // numberOfLines doesn't bound multiline TextInput the same way.
+            numberOfLines={8}
+            returnKeyType="default"
+            onContentSizeChange={(event) =>
+              setInputHeight(
+                Math.round(Math.min(Math.max(event.nativeEvent.contentSize.height, INPUT_MIN_HEIGHT), INPUT_MAX_HEIGHT)),
+              )
+            }
+          />
+          {draft.trim() || attachedFile ? (
+            <AnimatedPressable onPress={onSend} style={[styles.sendButton, sendAnimatedStyle]}>
+              <SymbolView
+                tintColor={Brand.ink}
+                name={{ ios: 'arrow.up', android: 'arrow_upward', web: 'arrow_upward' }}
+                size={18}
+              />
+            </AnimatedPressable>
+          ) : (
+            <AnimatedPressable
+              onPress={onStartRecording}
+              disabled={isTranscribing}
+              style={[styles.sendButton, sendAnimatedStyle, isTranscribing && styles.sendButtonDisabled]}>
+              {isTranscribing ? (
+                <SpinningFlower size={20} />
+              ) : (
+                <SymbolView tintColor={Brand.ink} name={{ ios: 'mic.fill', android: 'mic', web: 'mic' }} size={18} />
+              )}
+            </AnimatedPressable>
+          )}
+        </Animated.View>
       </View>
     </View>
   );
@@ -295,6 +407,10 @@ const MessageBubble = memo(function MessageBubble({
 }) {
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const [isTextExpanded, setIsTextExpanded] = useState(false);
+  // RN gives no direct truncation callback - the standard trick is checking
+  // whether the clamped render actually reached the numberOfLines cap.
+  const [isTextTruncated, setIsTextTruncated] = useState(false);
 
   if (message.from === 'bot') {
     return (
@@ -357,7 +473,7 @@ const MessageBubble = memo(function MessageBubble({
         <Pressable
           onLongPress={canLongPress ? (event) => onLongPress(event.nativeEvent.pageY) : undefined}
           delayLongPress={350}>
-          <View style={styles.meBubble}>
+          <Animated.View layout={LinearTransition.duration(220)} style={styles.meBubble}>
             {message.attachmentName && (
               <View style={styles.messageAttachmentChip}>
                 <SymbolView
@@ -370,8 +486,26 @@ const MessageBubble = memo(function MessageBubble({
                 </Text>
               </View>
             )}
-            {message.text ? <Text style={styles.meText}>{message.text}</Text> : null}
-          </View>
+            {message.text ? (
+              <>
+                <Text
+                  style={styles.meText}
+                  numberOfLines={isTextExpanded ? undefined : MESSAGE_TEXT_MAX_LINES}
+                  onTextLayout={(event) => {
+                    if (!isTextExpanded && event.nativeEvent.lines.length >= MESSAGE_TEXT_MAX_LINES) {
+                      setIsTextTruncated(true);
+                    }
+                  }}>
+                  {message.text}
+                </Text>
+                {isTextTruncated && (
+                  <Pressable onPress={() => setIsTextExpanded((expanded) => !expanded)} hitSlop={6}>
+                    <Text style={styles.meShowMoreText}>{isTextExpanded ? t('chatShowLess') : t('chatShowMore')}</Text>
+                  </Pressable>
+                )}
+              </>
+            ) : null}
+          </Animated.View>
         </Pressable>
       )}
       <View style={styles.meFooter}>
@@ -820,6 +954,11 @@ export default function ChatScreen() {
             maxToRenderPerBatch={8}
             windowSize={9}
             initialNumToRender={12}
+            // Without this, resizing an off-screen (or partially visible)
+            // bubble - e.g. expanding "Voir plus" - shifts the scroll offset
+            // under the user instead of keeping whatever they're looking at
+            // pinned in place.
+            maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
             onScrollToIndexFailed={({ index }) => {
               flatListRef.current?.scrollToOffset({ offset: index * 80, animated: true });
               setTimeout(() => scrollToEditingMessage(), 120);
@@ -827,8 +966,13 @@ export default function ChatScreen() {
             onContentSizeChange={() => {
               // Editing an existing message grows/shrinks its multiline
               // input as the user types, which would otherwise re-fire
-              // this and yank the view back to the bottom mid-edit.
+              // this and yank the view back to the bottom mid-edit. Also
+              // only while a reply is actively streaming in - otherwise
+              // expanding a "Voir plus" message anywhere in the list (which
+              // also changes total content size) would yank the view down
+              // to the bottom too.
               if (editingMessageIdRef.current) return;
+              if (!sending) return;
               scrollToEndRobust();
             }}
             ListFooterComponent={
@@ -1162,6 +1306,14 @@ function createStyles(colors: ThemeColors) {
     lineHeight: 20,
     fontFamily: Fonts.semiBold,
   },
+  meShowMoreText: {
+    color: colors.bubbleMineText,
+    opacity: 0.7,
+    fontSize: 13,
+    fontFamily: Fonts.semiBold,
+    marginTop: Spacing.one,
+    textDecorationLine: 'underline',
+  },
   meFooter: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1185,37 +1337,66 @@ function createStyles(colors: ThemeColors) {
   },
   inputRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    paddingHorizontal: Spacing.four,
+    alignItems: 'flex-end',
+    paddingHorizontal: Spacing.three,
     paddingTop: Spacing.two,
   },
+  // Compact by default: attach/send stay as separate small circles either
+  // side of a slim pill, same as before the "wide" treatment existed. Once
+  // the message wraps to more than one line, the animated styles built from
+  // expandProgress (see ChatInputBar) ease this into one wide, shadowed
+  // ChatGPT-style card instead - shadowColor/Offset stay static here since
+  // only the opacity/radius/elevation actually animate.
+  inputContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    // Fixed, not part of the compact/expand animation - see the comment on
+    // containerAnimatedStyle in ChatInputBar for why these must stay put.
+    paddingHorizontal: Spacing.one,
+    gap: Spacing.one,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+  },
+  // A fixed, moderate radius (not the 999 "fully round pill" every other
+  // fixed-height pill in this file uses) - that only reads as a pill at
+  // this one height; once the field grows with a multiline message it'd
+  // turn into a warped capsule instead of a normal rounded text box.
   input: {
     flex: 1,
-    backgroundColor: colors.surfaceElevated,
-    borderRadius: 999,
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.three,
     color: colors.text,
     fontSize: 14,
     fontFamily: Fonts.regular,
   },
   sendButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    // Fixed width, not part of the compact/expand animation - only its
+    // height/radius animate. See containerAnimatedStyle's comment.
+    width: 44,
     backgroundColor: Brand.green,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Fixed 48px size for the recording-mode checkmark, which doesn't
+  // participate in the compact/expand animation.
+  sendButtonSize: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
   sendButtonDisabled: {
     opacity: 0.6,
   },
-  attachButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.surface,
+  // Sizing/radius/background live on attachAnimatedStyle; attachButtonFill
+  // stretches the touchable Pressable to fill that animated box and centers
+  // the icon inside it.
+  attachButtonSizer: {
+    // Fixed width, not part of the compact/expand animation - only its
+    // height/radius/background animate. See containerAnimatedStyle's comment.
+    width: 42,
+    overflow: 'hidden',
+  },
+  attachButtonFill: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },

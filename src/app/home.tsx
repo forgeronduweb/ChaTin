@@ -1,9 +1,18 @@
+import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeInUp } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  Extrapolation,
+  FadeInUp,
+  interpolate,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AnimatedPressable } from '@/components/animated-pressable';
 import { GraphPaperBackground } from '@/components/graph-paper-background';
@@ -36,15 +45,89 @@ function SeeAllLink({ onPress, styles }: { onPress: () => void; styles: ReturnTy
   );
 }
 
+// Dragging the list up past this (px) snaps the sheet fully open; dragging
+// back down past this snaps it closed again. Direction-based (not tied to an
+// absolute scroll position) so closing responds immediately to a downward
+// drag no matter where the list happens to be scrolled to.
+const EXPAND_TRIGGER_DISTANCE = 24;
+
+// Leaves the settings/avatar button visible above the sheet instead of the
+// sheet covering all the way up to the status bar.
+const AVATAR_CLEARANCE = Spacing.three + 44 + Spacing.three;
+
+// Hand-drawn decorative doodles, mixed across prompt cards.
+const PROMPT_CARD_DOODLES = [require('@/assets/images/Dessin (1).png'), require('@/assets/images/Dessin (2).png')];
+
+// Stable per-prompt pick (not tied to grid position, unlike index % n, which
+// would always put the same doodle in the same left/right column) - the
+// same prompt always gets the same doodle across re-renders, but which
+// doodle that is doesn't correlate with where it lands in the grid.
+function doodleForPrompt(id: string): (typeof PROMPT_CARD_DOODLES)[number] {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
+  return PROMPT_CARD_DOODLES[Math.abs(hash) % PROMPT_CARD_DOODLES.length];
+}
+
 export default function HomeScreen() {
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const insets = useSafeAreaInsets();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [historyPreview, setHistoryPreview] = useState<StoredConversation[]>([]);
   const { prompts } = usePrompts();
-  const featuredPrompts = prompts.filter((prompt) => prompt.featured).slice(0, 2);
+  const featuredPrompts = prompts.filter((prompt) => prompt.featured);
   const pendingUpdate = usePendingUpdate();
   const [updateDismissed, setUpdateDismissed] = useState(false);
+  // Seeded with a realistic estimate so the prompt sheet already sits in
+  // roughly the right place before the header's first onLayout measurement.
+  const [headerHeight, setHeaderHeight] = useState(420);
+  // 0 = resting below the header, 1 = fully expanded to cover the screen.
+  const expanded = useSharedValue(0);
+  const dragAccum = useSharedValue(0);
+  const prevScrollY = useSharedValue(0);
+
+  const scrollHandler = useAnimatedScrollHandler((event) => {
+    const y = event.contentOffset.y;
+    const delta = y - prevScrollY.value;
+    prevScrollY.value = y;
+
+    // Accumulate a running "drag so far in the current direction" distance,
+    // resetting whenever the drag reverses - so it takes a real, deliberate
+    // drag past the trigger distance in one direction to flip state, not
+    // just a single noisy onScroll frame.
+    dragAccum.value = Math.sign(delta) === Math.sign(dragAccum.value) || dragAccum.value === 0 ? dragAccum.value + delta : delta;
+
+    if (dragAccum.value > EXPAND_TRIGGER_DISTANCE && expanded.value === 0) {
+      expanded.value = withTiming(1, { duration: 320 });
+      dragAccum.value = 0;
+    } else if (dragAccum.value < -EXPAND_TRIGGER_DISTANCE && expanded.value === 1) {
+      expanded.value = withTiming(0, { duration: 320 });
+      dragAccum.value = 0;
+    }
+  });
+
+  const collapsedTop = insets.top + headerHeight;
+  const expandedTop = insets.top + AVATAR_CLEARANCE;
+  const promptSheetStyle = useAnimatedStyle(() => ({
+    top: interpolate(expanded.value, [0, 1], [collapsedTop, expandedTop], Extrapolation.CLAMP),
+  }));
+
+  // A plain drag on the "Popular Prompt" title itself - not routed through
+  // the list's onScroll, so it works even once everything already fits
+  // on screen and the list has nothing left to scroll (which is exactly
+  // when closing-by-scrolling can't detect a downward drag at all).
+  const headerPanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_event, gesture) => Math.abs(gesture.dy) > 6,
+      onPanResponderMove: (_event, gesture) => {
+        if (gesture.dy < -EXPAND_TRIGGER_DISTANCE && expanded.value === 0) {
+          expanded.value = withTiming(1, { duration: 320 });
+        } else if (gesture.dy > EXPAND_TRIGGER_DISTANCE && expanded.value === 1) {
+          expanded.value = withTiming(0, { duration: 320 });
+        }
+      },
+    }),
+  ).current;
 
   useFocusEffect(
     useCallback(() => {
@@ -53,18 +136,22 @@ export default function HomeScreen() {
         if (session?.user) void syncCityFromLocation();
       });
       setHistoryPreview(listStoredConversations().slice(0, 3));
+      // Coming back from another screen (e.g. Settings) should always find
+      // the prompt sheet back in its resting position, not wherever it was
+      // left expanded to before navigating away.
+      expanded.value = 0;
     }, []),
   );
 
   return (
     <View style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
-        <View style={styles.gridSection}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <View style={styles.gridSection} onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height)}>
           <GraphPaperBackground />
 
           <Pressable
             onPress={() => router.push('/settings')}
-            style={({ pressed }) => pressed && styles.pressed}>
+            style={({ pressed }) => [styles.avatarPressable, pressed && styles.pressed]}>
             <View style={styles.avatar}>
               {user ? (
                 <Text style={styles.avatarInitials}>{initialsFor(user.name)}</Text>
@@ -115,18 +202,28 @@ export default function HomeScreen() {
             </View>
           )}
         </View>
+      </SafeAreaView>
 
-        <View style={styles.promptSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{t('homePopularPrompt')}</Text>
-            <SeeAllLink onPress={() => router.push('/prompts')} styles={styles} />
-          </View>
+      <Animated.View style={[styles.promptSheet, promptSheetStyle]}>
+        <View style={styles.sectionHeader} {...headerPanResponder.panHandlers}>
+          <Text style={styles.sectionTitle}>{t('homePopularPrompt')}</Text>
+        </View>
+        <Animated.ScrollView
+          onScroll={scrollHandler}
+          scrollEventThrottle={16}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.promptScrollContent, { paddingBottom: insets.bottom + Spacing.four }]}>
           <View style={styles.promptRow}>
             {featuredPrompts.map((prompt, index) => (
               <Animated.View
                 key={prompt.id}
                 entering={FadeInUp.duration(320).delay(index * 80)}
                 style={[styles.promptCard, { backgroundColor: prompt.color }]}>
+                <Image
+                  style={styles.promptCardDoodle}
+                  contentFit="contain"
+                  source={doodleForPrompt(prompt.id)}
+                />
                 <View style={styles.promptCardBody}>
                   <Text style={styles.promptTitle} numberOfLines={3} ellipsizeMode="tail">
                     {prompt.title}
@@ -141,8 +238,8 @@ export default function HomeScreen() {
               </Animated.View>
             ))}
           </View>
-        </View>
-      </SafeAreaView>
+        </Animated.ScrollView>
+      </Animated.View>
 
       {pendingUpdate && !updateDismissed && (
         <UpdatePrompt update={pendingUpdate} onDismiss={() => setUpdateDismissed(true)} />
@@ -165,6 +262,13 @@ function createStyles(colors: ThemeColors) {
       paddingTop: Spacing.three,
       paddingBottom: Spacing.four,
       gap: Spacing.four,
+    },
+    // Without this, the Pressable wrapping the avatar defaults to stretching
+    // to the full width of `gridSection` (a flex column) instead of hugging
+    // its 44x44 content, making the whole row tappable instead of just the
+    // circle.
+    avatarPressable: {
+      alignSelf: 'flex-start',
     },
     avatar: {
       width: 44,
@@ -255,22 +359,51 @@ function createStyles(colors: ThemeColors) {
       fontSize: 13,
       fontFamily: Fonts.semiBold,
     },
-    promptSection: {
+    // Absolutely positioned over `gridSection` (not a normal flex sibling) -
+    // its animated `top` (see promptSheetStyle) rises as its inner ScrollView
+    // scrolls, so the sheet grows to cover the whole screen instead of
+    // staying confined below the header.
+    promptSheet: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 10,
+      elevation: 10,
+      backgroundColor: colors.background,
+      borderTopLeftRadius: Spacing.five,
+      borderTopRightRadius: Spacing.five,
       paddingHorizontal: Spacing.four,
       paddingTop: Spacing.four,
     },
+    promptScrollContent: {
+      paddingBottom: Spacing.four,
+    },
     promptRow: {
       flexDirection: 'row',
+      flexWrap: 'wrap',
       gap: Spacing.three,
     },
     // Prompt cards use a per-prompt pastel accent background (unrelated to
     // page theme), so their text stays fixed ink, not the theme's `text`.
+    // Fixed ~47% width (not flex: 1) so they always wrap two-per-row instead
+    // of all sharing one row shrunk to fit once there are more than two -
+    // and stay that width even alone on a trailing row, for consistency.
     promptCard: {
-      flex: 1,
+      width: '47%',
       height: 220,
       borderRadius: Spacing.four,
       padding: Spacing.three,
       justifyContent: 'space-between',
+    },
+    // Sits around the card's vertical middle, behind the "Generated by"
+    // line and above the button - not pinned to the top corner.
+    promptCardDoodle: {
+      position: 'absolute',
+      top: 92,
+      right: Spacing.two,
+      width: 64,
+      height: 64,
     },
     promptCardBody: {
       gap: Spacing.two,

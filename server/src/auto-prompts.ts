@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { getRecentUserMessageTexts, replaceAutoPrompts, type PromptInput } from './admin-store.js';
+import { generatePromptSuggestions } from './groq.js';
 
 let client: GoogleGenAI | null = null;
 
@@ -8,8 +9,8 @@ function getClient(): GoogleGenAI {
   return client;
 }
 
-// Mirrors the pastel card palette used on the client's home/prompts screens.
-const CARD_COLORS = ['#F3A7C7', '#F6C445', '#3FBE7A', '#8FCBEA', '#C9A7F3'];
+// Keep in sync with COLORS in server/src/admin-dashboard-html.ts.
+const CARD_COLORS = ['#F6C445', '#F3A7C7', '#3FBE7A', '#8EC5FC', '#C9A7F3', '#FFB4A2', '#FFD6A5', '#A0E7E5', '#B8E0D2'];
 const PROMPT_COUNT = 8;
 
 const SYSTEM_INSTRUCTION = `You produce short "starter prompt" suggestions for a general-purpose AI chat app (ChaTin), shown to users as tappable cards on the home screen.
@@ -45,22 +46,37 @@ function parsePromptList(raw: string): RawPrompt[] {
 }
 
 export async function generateAutoPrompts(): Promise<void> {
-  if (!process.env.GEMINI_API_KEY) return;
+  if (!process.env.GEMINI_API_KEY && !process.env.GROQ_API_KEY) return;
 
   const recentQuestions = await getRecentUserMessageTexts(150);
   const sample = recentQuestions.slice(0, 60).map((text) => text.slice(0, 200));
   const userContent =
     sample.length > 0
       ? `Real recent user questions (sample):\n${sample.map((text) => `- ${text}`).join('\n')}`
-      : 'No usage data yet - base suggestions entirely on current web trends.';
+      : 'No usage data yet - use general knowledge for varied, useful suggestions.';
 
-  const response = await getClient().models.generateContent({
-    model: 'gemini-flash-latest',
-    contents: [{ role: 'user', parts: [{ text: userContent }] }],
-    config: { systemInstruction: SYSTEM_INSTRUCTION, tools: [{ googleSearch: {} }] },
-  });
+  let parsed: RawPrompt[] = [];
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      const response = await getClient().models.generateContent({
+        model: 'gemini-flash-latest',
+        contents: [{ role: 'user', parts: [{ text: userContent }] }],
+        config: { systemInstruction: SYSTEM_INSTRUCTION, tools: [{ googleSearch: {} }] },
+      });
+      parsed = parsePromptList(response.text ?? '');
+    } catch (error) {
+      console.error('Gemini auto-prompt generation failed, falling back to Groq:', error);
+    }
+  }
 
-  const parsed = parsePromptList(response.text ?? '').slice(0, PROMPT_COUNT);
+  // Groq has no web search, so this only runs when Gemini is unavailable/
+  // failed (quota, etc.) - suggestions then skip the "current trends" angle
+  // and lean on the recent-questions sample plus general knowledge instead.
+  if (parsed.length === 0 && process.env.GROQ_API_KEY) {
+    parsed = await generatePromptSuggestions(userContent);
+  }
+
+  parsed = parsed.slice(0, PROMPT_COUNT);
   if (parsed.length === 0) return;
 
   const inputs: PromptInput[] = parsed.map((entry, index) => ({

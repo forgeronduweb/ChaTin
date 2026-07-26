@@ -176,3 +176,40 @@ export async function extractSportsTeams(userText: string): Promise<SportsTeams>
   }
 }
 
+
+const PROMPT_SUGGESTIONS_PROMPT = `You produce short "starter prompt" suggestions for a general-purpose AI chat app (ChaTin), shown to users as tappable cards on the home screen.
+
+You are given a sample of real, recent questions asked by real users of the app (or a note that there's none yet). You do NOT have web search access here, so base suggestions on general knowledge and the sample - don't claim anything is a "current" trend or event since you can't verify that without search.
+
+Reply with ONLY JSON, no other text: {"prompts": [{"title": string, "category": string, "emoji": string}, ...]} with exactly 8 entries.
+- "title": the prompt itself, phrased as something a user would tap to start a conversation (a question or request, max ~70 characters), in French.
+- "category": a short 1-2 word topic label in French, e.g. "Cuisine", "Productivité".
+- "emoji": one single emoji representing the topic.`;
+
+export type PromptSuggestion = { title: string; category: string; emoji: string };
+
+export async function generatePromptSuggestions(userContent: string): Promise<PromptSuggestion[]> {
+  const response = await getClient().chat.completions.create({
+    model: 'llama-3.3-70b-versatile',
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: PROMPT_SUGGESTIONS_PROMPT },
+      { role: 'user', content: userContent },
+    ],
+  });
+
+  try {
+    const parsed = JSON.parse(response.choices[0]?.message.content ?? '{}') as { prompts?: unknown };
+    if (!Array.isArray(parsed.prompts)) return [];
+    return parsed.prompts
+      .filter((entry): entry is Record<string, unknown> => typeof entry === 'object' && entry !== null)
+      .map((entry) => ({
+        title: typeof entry.title === 'string' ? entry.title.trim() : '',
+        category: typeof entry.category === 'string' ? entry.category.trim() : '',
+        emoji: typeof entry.emoji === 'string' ? entry.emoji.trim() : '',
+      }))
+      .filter((entry): entry is PromptSuggestion => entry.title.length > 0);
+  } catch {
+    return [];
+  }
+}

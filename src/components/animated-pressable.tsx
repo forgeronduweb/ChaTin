@@ -1,12 +1,12 @@
 import { type PropsWithChildren } from 'react';
 import { Pressable, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import Animated, { type AnimatedStyle, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 
 const AnimatedPressableBase = Animated.createAnimatedComponent(Pressable);
 
 type Props = PropsWithChildren<
   Omit<PressableProps, 'style'> & {
-    style?: StyleProp<ViewStyle>;
+    style?: StyleProp<ViewStyle> | AnimatedStyle<ViewStyle> | (StyleProp<ViewStyle> | AnimatedStyle<ViewStyle>)[];
   }
 >;
 
