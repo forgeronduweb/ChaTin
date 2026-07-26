@@ -55,8 +55,7 @@
     ],
     "experiments": {
       "typedRoutes": true,
-      "reactCompiler": true,
-      "baseUrl": "/ChaTin/app"
+      "reactCompiler": true
     },
     "extra": {
       "router": {},
