@@ -14,16 +14,22 @@ function getHeaders() {
   };
 }
 
+// Stable regardless of version/tag: the asset is always named "chatin.apk"
+// and GitHub's "latest" alias always resolves to whatever release was most
+// recently published, so this URL never needs to change.
+export const LATEST_APK_URL = `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/latest/download/${ASSET_NAME}`;
+
 // Publishes a new GitHub Release with the APK attached as `chatin.apk`, so
-// the landing page's fixed `.../releases/latest/download/chatin.apk` link
-// always resolves to whatever was last published here. Each call creates a
-// brand new release (unique tag) rather than reusing one, since GitHub's
-// "latest" alias is based on publish recency, not tag name.
+// the landing page's and in-app updater's fixed LATEST_APK_URL always
+// resolves to whatever was last published here. Each call creates a brand
+// new release (unique tag) rather than reusing one, since GitHub's "latest"
+// alias is based on publish recency, not tag name. Returns LATEST_APK_URL
+// for convenience, once the upload has actually succeeded.
 export async function publishGithubRelease(
   buffer: Buffer,
   version: string,
   notes: string | null,
-): Promise<void> {
+): Promise<string> {
   const headers = getHeaders();
 
   const createRes = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases`, {
@@ -54,4 +60,6 @@ export async function publishGithubRelease(
   if (!uploadRes.ok) {
     throw new Error(`GitHub asset upload failed (${uploadRes.status}): ${await uploadRes.text()}`);
   }
+
+  return LATEST_APK_URL;
 }

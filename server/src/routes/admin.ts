@@ -237,8 +237,11 @@ adminRouter.post(
       return;
     }
 
-    const apkUrl = await uploadApk(file.buffer, file.originalname);
     const trimmedNotes = typeof notes === 'string' && notes.trim() ? notes.trim() : null;
+    // GitHub Release is the required source of truth: it's what the in-app
+    // updater downloads from and has no meaningful file size cap, unlike
+    // Supabase Storage's free-tier 50MB limit.
+    const apkUrl = await publishGithubRelease(file.buffer, version.trim(), trimmedNotes);
     const release = await createRelease({
       version: version.trim(),
       versionCode: parsedVersionCode,
@@ -247,18 +250,17 @@ adminRouter.post(
       notes: trimmedNotes,
     });
 
-    // Best-effort: the in-app update check only depends on the row above,
-    // so a GitHub hiccup shouldn't fail the whole request — but the landing
-    // page's download link depends on this succeeding, so report it back.
-    let githubError: string | null = null;
+    // Best-effort mirror only - nothing currently depends on the Supabase
+    // copy, so a failure here shouldn't fail the whole request.
+    let supabaseError: string | null = null;
     try {
-      await publishGithubRelease(file.buffer, release.version, trimmedNotes);
+      await uploadApk(file.buffer, file.originalname);
     } catch (error) {
-      console.error('GitHub release publish failed:', error);
-      githubError = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Supabase Storage mirror failed:', error);
+      supabaseError = error instanceof Error ? error.message : 'Unknown error';
     }
 
-    res.status(201).json({ ...release, githubError });
+    res.status(201).json({ ...release, supabaseError });
   }),
 );
 
