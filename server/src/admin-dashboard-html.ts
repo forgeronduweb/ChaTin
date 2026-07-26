@@ -53,7 +53,15 @@ export const DASHBOARD_HTML = `<!doctype html>
   .main { flex: 1; min-width: 0; padding: 32px 36px 80px; }
   .view { display: none; }
   .view.active { display: block; }
-  .view-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+  /* Prompts (and the overview/report pages) aren't tables - there's no
+     thead to freeze - so what "frozen header" means there is this title
+     bar staying put while the page scrolls past long content underneath
+     it (e.g. the Prompts card grid). Sticky here works with a plain page
+     scroll with no extra wrapper needed, unlike the table panels above. */
+  .view-header {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; flex-wrap: wrap;
+    position: sticky; top: 0; z-index: 5; background: var(--cream); padding: 14px 0; margin-top: -14px;
+  }
   .view-title { font-size: 23px; font-weight: 800; margin: 0; }
 
   .search-input, .form-input, .form-select {
