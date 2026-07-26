@@ -127,10 +127,18 @@ export async function getNotificationCounts(): Promise<Record<NotificationKey, n
   const viewedAt = new Map(states.map((s) => [s.key, s.lastViewedAt]));
   const epoch = new Date(0);
 
-  const [[{ newUsers }], [{ newFeedback }]] = await Promise.all([
-    db.select({ newUsers: count() }).from(users).where(gt(users.createdAt, viewedAt.get('users') ?? epoch)),
-    db.select({ newFeedback: count() }).from(feedback).where(gt(feedback.createdAt, viewedAt.get('feedback') ?? epoch)),
-  ]);
+  // Sequential, not Promise.all - this pair kept hanging under Supabase's
+  // transaction pooler with the query done but its result never read back
+  // (pg_stat_activity showed it 'active'/ClientRead for 50+ seconds). Two
+  // tiny counts running one after another costs nothing worth avoiding that.
+  const [{ newUsers }] = await db
+    .select({ newUsers: count() })
+    .from(users)
+    .where(gt(users.createdAt, viewedAt.get('users') ?? epoch));
+  const [{ newFeedback }] = await db
+    .select({ newFeedback: count() })
+    .from(feedback)
+    .where(gt(feedback.createdAt, viewedAt.get('feedback') ?? epoch));
 
   return { users: newUsers, feedback: newFeedback };
 }
