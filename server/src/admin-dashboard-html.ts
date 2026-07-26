@@ -119,13 +119,17 @@ export const DASHBOARD_HTML = `<!doctype html>
   .chart-label { font-size: 11px; color: var(--text-muted); font-weight: 600; }
 
   /* Table */
-  .panel { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow-x: auto; }
+  /* overflow-x:auto alone doesn't work for a sticky header: per spec, once
+     overflow-x isn't visible, overflow-y computes to auto too - which makes
+     .panel a scroll container, but since it had no height limit it never
+     actually scrolled internally, so thead's sticky top:0 just sat there
+     inert instead of detaching and following the page scroll. Giving it a
+     real bounded height (and only then does it get its own scrollbar) is
+     what makes position:sticky have something to stick within.
+  */
+  .panel { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: auto; max-height: 70vh; }
   table { width: 100%; min-width: 900px; border-collapse: collapse; font-size: 14px; }
   th, td { text-align: left; padding: 12px 20px; }
-  /* Sticky so the column labels stay put while a long table scrolls past
-     underneath - position:sticky escapes .panel's auto height (it never
-     actually grows tall enough to scroll on its own) and pins to the page's
-     own scroll instead, which is what we want here. */
   thead th { color: var(--text-muted); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; background: var(--cream); border-bottom: 1px solid var(--border); white-space: nowrap; position: sticky; top: 0; z-index: 2; }
   tbody tr:not(:last-child) td { border-bottom: 1px solid var(--border); }
   tbody tr:hover { background: rgba(22,22,22,0.015); }
@@ -245,6 +249,13 @@ export const DASHBOARD_HTML = `<!doctype html>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18.7 8 13 13.7l-3-3L4.3 16.4"/></svg>
       Rapport
     </button>
+
+    <form method="POST" action="/admin/logout" style="margin-top: auto;">
+      <button class="nav-item" type="submit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+        Déconnexion
+      </button>
+    </form>
   </aside>
 
   <main class="main">
@@ -1101,3 +1112,60 @@ export const DASHBOARD_HTML = `<!doctype html>
   </script>
 </body>
 </html>`;
+
+export function renderLoginHtml(showError: boolean): string {
+  return `<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ChaTin — Admin</title>
+<link rel="icon" href="https://forgeronduweb.github.io/ChaTin/images/icon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --cream: #F7F3E6; --paper: #EFEAD6; --ink: #161616; --ink-muted: #3A382F;
+    --text-muted: #8C876F; --yellow: #F6C445; --red: #E0555A; --border: #E6E1D2;
+    --radius-lg: 16px; --radius-md: 12px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: 'Baloo 2', system-ui, sans-serif; background: var(--cream); color: var(--ink);
+    min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  .card {
+    width: 100%; max-width: 340px; background: var(--paper); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 32px 28px; text-align: center;
+  }
+  .card img { width: 48px; height: 48px; border-radius: 14px; margin-bottom: 14px; }
+  .card h1 { font-size: 19px; margin: 0 0 22px; }
+  .form-input {
+    width: 100%; font-family: inherit; font-size: 15px; border: 1px solid var(--border); background: var(--white, #fff);
+    border-radius: var(--radius-md); padding: 12px 14px; margin-bottom: 14px;
+  }
+  .form-input:focus { outline: 2px solid var(--yellow); outline-offset: 1px; }
+  .submit-btn {
+    width: 100%; font-family: inherit; font-size: 15px; font-weight: 700; border: none; cursor: pointer;
+    background: var(--yellow); color: var(--ink); border-radius: var(--radius-md); padding: 12px 14px;
+  }
+  .submit-btn:hover { filter: brightness(0.96); }
+  .error {
+    color: var(--red); font-size: 13px; font-weight: 600; margin: -8px 0 14px;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <img src="https://forgeronduweb.github.io/ChaTin/images/icon.png" alt="ChaTin" />
+    <h1>Accès admin</h1>
+    <form method="POST" action="/admin/login">
+      ${showError ? '<p class="error">Mot de passe incorrect.</p>' : ''}
+      <input class="form-input" type="password" name="password" placeholder="Mot de passe" autofocus required />
+      <button class="submit-btn" type="submit">Se connecter</button>
+    </form>
+  </div>
+</body>
+</html>`;
+}
