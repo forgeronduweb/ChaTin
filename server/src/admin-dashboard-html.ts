@@ -122,7 +122,11 @@ export const DASHBOARD_HTML = `<!doctype html>
   .panel { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow-x: auto; }
   table { width: 100%; min-width: 900px; border-collapse: collapse; font-size: 14px; }
   th, td { text-align: left; padding: 12px 20px; }
-  thead th { color: var(--text-muted); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; background: var(--cream); border-bottom: 1px solid var(--border); white-space: nowrap; }
+  /* Sticky so the column labels stay put while a long table scrolls past
+     underneath - position:sticky escapes .panel's auto height (it never
+     actually grows tall enough to scroll on its own) and pins to the page's
+     own scroll instead, which is what we want here. */
+  thead th { color: var(--text-muted); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; background: var(--cream); border-bottom: 1px solid var(--border); white-space: nowrap; position: sticky; top: 0; z-index: 2; }
   tbody tr:not(:last-child) td { border-bottom: 1px solid var(--border); }
   tbody tr:hover { background: rgba(22,22,22,0.015); }
   td { vertical-align: middle; }
@@ -144,8 +148,9 @@ export const DASHBOARD_HTML = `<!doctype html>
     position: sticky; right: 0;
     background: var(--white);
     box-shadow: -6px 0 6px -6px rgba(0,0,0,0.12);
+    z-index: 1;
   }
-  thead th.sticky-actions { background: var(--cream); }
+  thead th.sticky-actions { background: var(--cream); z-index: 3; }
 
   .badge { display: inline-block; padding: 3px 11px; border-radius: 999px; font-size: 11px; font-weight: 700; }
   .badge-active { background: rgba(63,190,122,0.15); color: #1F8A50; }
