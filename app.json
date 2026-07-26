@@ -2,7 +2,7 @@
   "expo": {
     "name": "ChaTin",
     "slug": "mon-app-android",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "orientation": "portrait",
     "icon": "./assets/images/launcher.png",
     "scheme": "monappandroid",
@@ -18,7 +18,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.anonymous.monappandroid",
-      "versionCode": 10
+      "versionCode": 11
     },
     "web": {
       "output": "static",
