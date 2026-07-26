@@ -123,11 +123,19 @@ export const DASHBOARD_HTML = `<!doctype html>
      overflow-x isn't visible, overflow-y computes to auto too - which makes
      .panel a scroll container, but since it had no height limit it never
      actually scrolled internally, so thead's sticky top:0 just sat there
-     inert instead of detaching and following the page scroll. Giving it a
-     real bounded height (and only then does it get its own scrollbar) is
-     what makes position:sticky have something to stick within.
+     inert instead of detaching and following the page scroll. A real
+     bounded height (and only then does it get its own scrollbar) is what
+     makes position:sticky have something to stick within.
+     This has to be a fixed height, not max-height: a table short enough to
+     never exceed max-height never gets an internal scrollbar either, so its
+     header would stay "sticky" in name only and just scroll off with the
+     rest of the page - which is exactly what still happened on the
+     shorter Utilisateurs/Mises à jour/Retours tables after the first pass
+     at this fix (only Conversations has enough rows to reliably exceed a
+     max-height). Every table now gets the same fixed-height scroll box
+     regardless of row count, so the header freezes consistently everywhere.
   */
-  .panel { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: auto; max-height: 70vh; }
+  .panel { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: auto; height: 70vh; }
   table { width: 100%; min-width: 900px; border-collapse: collapse; font-size: 14px; }
   th, td { text-align: left; padding: 12px 20px; }
   thead th { color: var(--text-muted); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; background: var(--cream); border-bottom: 1px solid var(--border); white-space: nowrap; position: sticky; top: 0; z-index: 2; }
