@@ -1,11 +1,8 @@
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
 
 const SESSION_COOKIE = 'chatin_admin_session';
-
-// Single-admin tool, one shared login - an in-memory set of valid session
-// tokens is enough - restarting the server just signs everyone out.
-const validSessions = new Set<string>();
+const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 function passwordsMatch(candidate: string, expected: string): boolean {
   const candidateBuf = Buffer.from(candidate);
@@ -42,15 +39,36 @@ export function verifyAdminPassword(candidate: string): boolean {
   return Boolean(adminPassword) && Boolean(candidate) && passwordsMatch(candidate, adminPassword!);
 }
 
-export function createAdminSession(res: Response): void {
-  const token = randomBytes(32).toString('hex');
-  validSessions.add(token);
-  res.cookie(SESSION_COOKIE, token, { httpOnly: true, sameSite: 'lax', maxAge: 30 * 24 * 60 * 60 * 1000 });
+// Sessions are a signed "expiry.signature" cookie instead of a server-side
+// store, on purpose - an in-memory Set of valid tokens got wiped every time
+// the server process restarted (a redeploy, a container health-check
+// restart, or just running more than one instance behind a load balancer),
+// silently signing everyone out. Signing with ADMIN_PASSWORD as the key
+// means no server-side state to lose, and rotating the password
+// conveniently invalidates every outstanding session as a side effect.
+function sign(payload: string): string {
+  return createHmac('sha256', process.env.ADMIN_PASSWORD ?? '').update(payload).digest('hex');
 }
 
-export function destroyAdminSession(req: Request, res: Response): void {
-  const token = getSessionToken(req);
-  if (token) validSessions.delete(token);
+function isValidSessionToken(token: string): boolean {
+  const separator = token.lastIndexOf('.');
+  if (separator === -1) return false;
+  const payload = token.slice(0, separator);
+  const signature = token.slice(separator + 1);
+  const expectedBuf = Buffer.from(sign(payload));
+  const signatureBuf = Buffer.from(signature);
+  if (signatureBuf.length !== expectedBuf.length || !timingSafeEqual(signatureBuf, expectedBuf)) return false;
+  const expiresAt = Number(payload);
+  return Number.isFinite(expiresAt) && Date.now() < expiresAt;
+}
+
+export function createAdminSession(res: Response): void {
+  const payload = String(Date.now() + SESSION_MAX_AGE_MS);
+  const token = `${payload}.${sign(payload)}`;
+  res.cookie(SESSION_COOKIE, token, { httpOnly: true, sameSite: 'lax', maxAge: SESSION_MAX_AGE_MS });
+}
+
+export function destroyAdminSession(_req: Request, res: Response): void {
   res.clearCookie(SESSION_COOKIE);
 }
 
@@ -61,7 +79,7 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   }
 
   const token = getSessionToken(req);
-  if (token && validSessions.has(token)) {
+  if (token && isValidSessionToken(token)) {
     next();
     return;
   }
