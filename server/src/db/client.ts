@@ -18,5 +18,16 @@ const client = postgres(connectionString, {
   max: 5,
   idle_timeout: 20,
   connect_timeout: 10,
+  // Belt-and-suspenders for the same problem, but server-side: we found
+  // report/stats queries stuck for 90+ seconds in Postgres itself (state
+  // 'active', wait_event 'ClientRead' - the query had finished and was just
+  // waiting for a client that had already given up to read the result). A
+  // stuck query like that permanently occupies one of the 5 pool slots
+  // above until something kills it - these timeouts make Postgres do that
+  // itself instead of the connection leaking forever.
+  connection: {
+    statement_timeout: 15000,
+    idle_in_transaction_session_timeout: 10000,
+  },
 });
 export const db = drizzle(client, { schema });
