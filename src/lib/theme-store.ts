@@ -1,14 +1,20 @@
-import { readJsonFile, writeJsonFile } from './kv-file-store';
+import { File, Paths } from 'expo-file-system';
 
 export type ThemeMode = 'light' | 'dark' | 'auto';
 
-const FILENAME = 'theme.json';
+const file = new File(Paths.document, 'theme.json');
 
 export function getStoredThemeMode(): ThemeMode {
-  const mode = readJsonFile<{ mode?: string }>(FILENAME)?.mode;
-  return mode === 'light' || mode === 'dark' ? mode : 'auto';
+  if (!file.exists) return 'auto';
+  try {
+    const mode = (JSON.parse(file.textSync()) as { mode?: string }).mode;
+    return mode === 'light' || mode === 'dark' ? mode : 'auto';
+  } catch {
+    return 'auto';
+  }
 }
 
 export function setStoredThemeMode(mode: ThemeMode): void {
-  writeJsonFile(FILENAME, { mode });
+  if (!file.exists) file.create();
+  file.write(JSON.stringify({ mode }));
 }

@@ -1,4 +1,4 @@
-import { readJsonFile, writeJsonFile } from './kv-file-store';
+import { File, Paths } from 'expo-file-system';
 
 import type { ChatMessage } from './api';
 
@@ -9,14 +9,20 @@ export type StoredConversation = {
   updatedAt: number;
 };
 
-const FILENAME = 'conversations.json';
+const file = new File(Paths.document, 'conversations.json');
 
 function readAll(): StoredConversation[] {
-  return readJsonFile<StoredConversation[]>(FILENAME) ?? [];
+  if (!file.exists) return [];
+  try {
+    return JSON.parse(file.textSync()) as StoredConversation[];
+  } catch {
+    return [];
+  }
 }
 
 function writeAll(conversations: StoredConversation[]) {
-  writeJsonFile(FILENAME, conversations);
+  if (!file.exists) file.create();
+  file.write(JSON.stringify(conversations));
 }
 
 export function listStoredConversations(): StoredConversation[] {
