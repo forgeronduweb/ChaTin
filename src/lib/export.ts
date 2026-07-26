@@ -28,6 +28,21 @@ async function downloadAndShare(path: string, body: unknown, filename: string): 
   }
   const bytes = new Uint8Array(await response.arrayBuffer());
 
+  // expo-file-system's cache dir and expo-sharing both have no web
+  // implementation - Sharing.isAvailableAsync() would just resolve false and
+  // silently no-op there. The browser's own download mechanism (an <a
+  // download> click) is the direct equivalent of "hand the user this file".
+  if (Platform.OS === 'web') {
+    const blob = new Blob([bytes]);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+    return;
+  }
+
   const file = new File(Paths.cache, filename);
   if (file.exists) file.delete();
   file.write(bytes);

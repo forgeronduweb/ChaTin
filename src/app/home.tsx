@@ -174,6 +174,17 @@ export default function HomeScreen() {
             </View>
           </AnimatedPressable>
 
+          <AnimatedPressable onPress={() => router.push('/tools')} style={styles.toolsCard}>
+            <Text style={styles.toolsCardText}>{t('homeTools')}</Text>
+            <View style={styles.toolsCardArrow}>
+              <SymbolView
+                tintColor={Brand.green}
+                name={{ ios: 'arrow.right', android: 'arrow_forward', web: 'arrow_forward' }}
+                size={16}
+              />
+            </View>
+          </AnimatedPressable>
+
           {historyPreview.length > 0 && (
             <View>
               <View style={styles.sectionHeader}>
@@ -312,6 +323,31 @@ function createStyles(colors: ThemeColors) {
       height: 36,
       borderRadius: 18,
       backgroundColor: Brand.ink,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    // Same shape as newChat, but a secondary tone (ink pill + green accent)
+    // so it doesn't compete with the primary "Nouvelle discussion" CTA.
+    toolsCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: Brand.ink,
+      borderRadius: 999,
+      paddingLeft: Spacing.four,
+      paddingRight: Spacing.two,
+      paddingVertical: Spacing.two,
+    },
+    toolsCardText: {
+      color: Brand.white,
+      fontSize: 16,
+      fontFamily: Fonts.bold,
+    },
+    toolsCardArrow: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: Brand.green,
       alignItems: 'center',
       justifyContent: 'center',
     },

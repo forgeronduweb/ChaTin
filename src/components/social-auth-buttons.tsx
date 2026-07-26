@@ -1,7 +1,7 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { GoogleSignin, isErrorWithCode, statusCodes } from '@react-native-google-signin/google-signin';
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { GoogleLogo } from '@/components/google-logo';
 import { Brand, Fonts, Spacing } from '@/constants/theme';
@@ -34,7 +34,11 @@ export function SocialAuthButtons({ onSignedIn }: SocialAuthButtonsProps) {
 
     setSubmitting(true);
     try {
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      // hasPlayServices() checks for an Android system component that has
+      // no equivalent (and no-op web shim) on web - only call it natively.
+      if (Platform.OS !== 'web') {
+        await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      }
       const result = await GoogleSignin.signIn();
       const idToken = result.data?.idToken;
       if (!idToken) throw new Error('No idToken returned by Google Sign-In');

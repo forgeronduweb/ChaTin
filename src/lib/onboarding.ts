@@ -1,17 +1,11 @@
-import { File, Paths } from 'expo-file-system';
+import { readJsonFile, writeJsonFile } from './kv-file-store';
 
-const file = new File(Paths.document, 'onboarding.json');
+const FILENAME = 'onboarding.json';
 
 export function hasCompletedOnboarding(): boolean {
-  if (!file.exists) return false;
-  try {
-    return (JSON.parse(file.textSync()) as { completed?: boolean }).completed === true;
-  } catch {
-    return false;
-  }
+  return readJsonFile<{ completed?: boolean }>(FILENAME)?.completed === true;
 }
 
 export function markOnboardingComplete(): void {
-  if (!file.exists) file.create();
-  file.write(JSON.stringify({ completed: true }));
+  writeJsonFile(FILENAME, { completed: true });
 }
