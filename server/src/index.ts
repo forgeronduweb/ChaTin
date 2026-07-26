@@ -12,6 +12,19 @@ import { promptsRouter } from './routes/prompts.js';
 import { releasesRouter } from './routes/releases.js';
 import { transcribeRouter } from './routes/transcribe.js';
 
+// Without these, an error that doesn't go through asyncHandler - e.g. a
+// query whose *other* Promise.all sibling gets cancelled server-side after
+// this one already settled, or a driver-level socket error - crashes the
+// whole process by Node's default. That's what took the server down under
+// load once statement_timeout started actually cancelling stuck queries
+// (see db/client.ts): log it and keep serving everyone else instead.
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled rejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err);
+});
+
 const app = express();
 app.use(cors());
 app.use(express.json());
