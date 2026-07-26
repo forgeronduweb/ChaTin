@@ -135,6 +135,9 @@ export const DASHBOARD_HTML = `<!doctype html>
   .avatar img { width: 100%; height: 100%; object-fit: cover; }
   .muted { color: var(--text-muted); }
   .actions-cell { display: flex; gap: 8px; white-space: nowrap; }
+  .conv-title-cell {
+    max-width: 360px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
 
   .badge { display: inline-block; padding: 3px 11px; border-radius: 999px; font-size: 11px; font-weight: 700; }
   .badge-active { background: rgba(63,190,122,0.15); color: #1F8A50; }
@@ -849,7 +852,7 @@ export const DASHBOARD_HTML = `<!doctype html>
       document.getElementById('conv-empty').style.display = rows.length === 0 ? 'block' : 'none';
       body.innerHTML = rows.map((c) => \`
         <tr>
-          <td>\${escapeHtml(c.title)}</td>
+          <td class="conv-title-cell" title="\${escapeHtml(c.title)}">\${escapeHtml(c.title)}</td>
           <td class="muted">\${c.userName ? escapeHtml(c.userName) : 'Invité'}</td>
           <td class="muted">\${fmtDate(c.createdAt)}</td>
           <td>\${c.messageCount}</td>
