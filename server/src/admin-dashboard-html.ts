@@ -84,6 +84,29 @@ export const DASHBOARD_HTML = `<!doctype html>
   .btn-sm { padding: 7px 14px; font-size: 12px; }
   .btn:disabled { opacity: 0.5; cursor: default; }
 
+  /* Row kebab menu (Utilisateurs table) */
+  .row-menu-wrap { position: relative; display: inline-block; }
+  .row-menu-btn {
+    width: 32px; height: 32px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+    background: var(--white); color: var(--ink); cursor: pointer; display: inline-flex;
+    align-items: center; justify-content: center; padding: 0; transition: border-color .15s, background .15s;
+  }
+  .row-menu-btn:hover, .row-menu-btn.open { border-color: var(--ink); background: var(--cream); }
+  .row-menu {
+    display: none; position: absolute; right: 0; top: calc(100% + 4px); min-width: 168px;
+    background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-md);
+    box-shadow: 0 8px 24px rgba(22,22,22,0.14); padding: 6px; z-index: 20;
+  }
+  .row-menu.open { display: block; }
+  .row-menu-item {
+    display: block; width: 100%; padding: 8px 10px; border-radius: var(--radius-sm); border: none;
+    background: none; font-family: inherit; font-size: 13px; font-weight: 700; color: var(--ink);
+    cursor: pointer; text-align: left;
+  }
+  .row-menu-item:hover { background: var(--cream); }
+  .row-menu-item.danger { color: var(--red); }
+  .row-menu-item.danger:hover { background: var(--red); color: var(--white); }
+
   /* Stats */
   .stat-section { margin-bottom: 26px; }
   .stat-section-title { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 800; margin: 0 0 12px; }
@@ -838,9 +861,9 @@ export const DASHBOARD_HTML = `<!doctype html>
         const statusBadge = u.status === 'suspended'
           ? '<span class="badge badge-suspended">Suspendu</span>'
           : '<span class="badge badge-active">Actif</span>';
-        const toggleBtn = u.status === 'suspended'
-          ? \`<button class="btn btn-outline btn-sm" data-action="reactivate" data-id="\${u.id}">Réactiver</button>\`
-          : \`<button class="btn btn-outline btn-sm" data-action="suspend" data-id="\${u.id}">Suspendre</button>\`;
+        const toggleItem = u.status === 'suspended'
+          ? \`<button class="row-menu-item" data-action="reactivate" data-id="\${u.id}">Réactiver</button>\`
+          : \`<button class="row-menu-item" data-action="suspend" data-id="\${u.id}">Suspendre</button>\`;
         const device = u.deviceModel
           ? escapeHtml(u.deviceModel) + (u.osVersion ? ' · Android ' + escapeHtml(u.osVersion) : '')
           : '—';
@@ -853,14 +876,40 @@ export const DASHBOARD_HTML = `<!doctype html>
           <td>\${u.conversationCount}</td>
           <td>\${u.messageCount}</td>
           <td>\${statusBadge}</td>
-          <td class="sticky-actions"><div class="actions-cell">\${toggleBtn}<button class="btn btn-danger btn-sm" data-action="delete-user" data-id="\${u.id}">Supprimer</button></div></td>
+          <td class="sticky-actions">
+            <div class="row-menu-wrap">
+              <button class="row-menu-btn" data-action="toggle-menu" aria-label="Actions" aria-haspopup="true">
+                <svg viewBox="0 0 24 24" fill="currentColor" style="width:16px;height:16px"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>
+              </button>
+              <div class="row-menu">
+                \${toggleItem}
+                <button class="row-menu-item danger" data-action="delete-user" data-id="\${u.id}">Supprimer</button>
+              </div>
+            </div>
+          </td>
         </tr>\`;
       }).join('');
 
+      body.querySelectorAll('[data-action="toggle-menu"]').forEach((b) => b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const menu = b.nextElementSibling;
+        const wasOpen = menu.classList.contains('open');
+        closeAllRowMenus();
+        if (!wasOpen) {
+          menu.classList.add('open');
+          b.classList.add('open');
+        }
+      }));
       body.querySelectorAll('[data-action="suspend"]').forEach((b) => b.addEventListener('click', () => userAction(b.dataset.id, 'suspend')));
       body.querySelectorAll('[data-action="reactivate"]').forEach((b) => b.addEventListener('click', () => userAction(b.dataset.id, 'reactivate')));
       body.querySelectorAll('[data-action="delete-user"]').forEach((b) => b.addEventListener('click', () => deleteUserRow(b)));
     }
+
+    function closeAllRowMenus() {
+      document.querySelectorAll('.row-menu.open').forEach((m) => m.classList.remove('open'));
+      document.querySelectorAll('.row-menu-btn.open').forEach((b) => b.classList.remove('open'));
+    }
+    document.addEventListener('click', closeAllRowMenus);
 
     async function userAction(id, action) {
       await fetch('/admin/api/users/' + id + '/' + action, { method: 'POST' });
