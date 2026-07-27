@@ -166,7 +166,11 @@ export const DASHBOARD_HTML = `<!doctype html>
      max-height). Every table now gets the same fixed-height scroll box
      regardless of row count, so the header freezes consistently everywhere.
   */
-  .panel { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: auto; height: 70vh; }
+  .panel {
+    background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: auto; height: 70vh;
+    scrollbar-width: none; -ms-overflow-style: none; /* Firefox / old Edge - scroll still works, just no visible track */
+  }
+  .panel::-webkit-scrollbar { display: none; } /* Chrome / Safari / Edge */
   table { width: 100%; min-width: 900px; border-collapse: collapse; font-size: 14px; }
   th, td { text-align: left; padding: 12px 20px; }
   thead th { color: var(--text-muted); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; background: var(--cream); border-bottom: 1px solid var(--border); white-space: nowrap; position: sticky; top: 0; z-index: 2; }
