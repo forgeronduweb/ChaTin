@@ -3,29 +3,48 @@ import multer from 'multer';
 import { createAdminSession, destroyAdminSession, requireAdmin, verifyAdminPassword } from '../admin-auth.js';
 import { asyncHandler } from '../async-handler.js';
 import {
+  archiveAnnouncement,
+  type AnnouncementInput,
+  createAnnouncement,
+  createEmailTemplate,
   createPrompt,
   createRelease,
+  deleteAnnouncement,
+  deleteEmailTemplate,
   deleteFeedback,
   deletePrompt,
   deleteRelease,
   deleteUser,
+  duplicateAnnouncement,
   getAnalyticsReport,
+  getAnnouncement,
   getNotificationCounts,
   getStats,
   isNotificationKey,
+  listAnnouncements,
   listConversations,
+  listEmailCampaigns,
+  listEmailTemplates,
   listFeedback,
   listPrompts,
   listReleases,
   listUsers,
   markNotificationViewed,
+  sendEmailCampaign,
   setUserStatus,
+  updateAnnouncement,
+  updateEmailTemplate,
   updatePrompt,
 } from '../admin-store.js';
 import { DASHBOARD_HTML, renderLoginHtml } from '../admin-dashboard-html.js';
+import { EMAIL_DESIGNS, type EmailDesign, renderEmailHtml } from '../email.js';
 import { publishGithubRelease } from '../github-releases.js';
 import { adminLoginLimiter } from '../rate-limit.js';
 import { uploadApk } from '../supabase-storage.js';
+
+function parseEmailDesign(value: unknown): EmailDesign {
+  return typeof value === 'string' && (EMAIL_DESIGNS as readonly string[]).includes(value) ? (value as EmailDesign) : 'announcement';
+}
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
 
@@ -292,6 +311,233 @@ adminRouter.delete(
     const deleted = await deleteRelease(req.params.id);
     if (!deleted) {
       res.status(404).json({ error: 'Release not found' });
+      return;
+    }
+    res.status(204).end();
+  }),
+);
+
+// --- Email templates ---
+
+adminRouter.get(
+  '/admin/api/email-templates',
+  asyncHandler(async (_req, res) => {
+    res.json(await listEmailTemplates());
+  }),
+);
+
+adminRouter.post(
+  '/admin/api/email-templates',
+  asyncHandler(async (req, res) => {
+    const { name, subject, body, design } = req.body ?? {};
+    if (typeof name !== 'string' || !name.trim()) {
+      res.status(400).json({ error: 'name is required' });
+      return;
+    }
+    if (typeof subject !== 'string' || !subject.trim()) {
+      res.status(400).json({ error: 'subject is required' });
+      return;
+    }
+    if (typeof body !== 'string' || !body.trim()) {
+      res.status(400).json({ error: 'body is required' });
+      return;
+    }
+    const template = await createEmailTemplate({ name: name.trim(), subject: subject.trim(), body, design: parseEmailDesign(design) });
+    res.status(201).json(template);
+  }),
+);
+
+adminRouter.patch(
+  '/admin/api/email-templates/:id',
+  asyncHandler(async (req, res) => {
+    const { name, subject, body, design } = req.body ?? {};
+    const patch: Record<string, unknown> = {};
+    if (typeof name === 'string') patch.name = name.trim();
+    if (typeof subject === 'string') patch.subject = subject.trim();
+    if (typeof body === 'string') patch.body = body;
+    if (typeof design === 'string') patch.design = parseEmailDesign(design);
+
+    const template = await updateEmailTemplate(req.params.id, patch);
+    if (!template) {
+      res.status(404).json({ error: 'Template not found' });
+      return;
+    }
+    res.json(template);
+  }),
+);
+
+adminRouter.delete(
+  '/admin/api/email-templates/:id',
+  asyncHandler(async (req, res) => {
+    const deleted = await deleteEmailTemplate(req.params.id);
+    if (!deleted) {
+      res.status(404).json({ error: 'Template not found' });
+      return;
+    }
+    res.status(204).end();
+  }),
+);
+
+// --- Email campaigns (compose + send) ---
+
+adminRouter.get(
+  '/admin/api/email-campaigns',
+  asyncHandler(async (_req, res) => {
+    res.json(await listEmailCampaigns());
+  }),
+);
+
+adminRouter.post(
+  '/admin/api/email-campaigns/send',
+  asyncHandler(async (req, res) => {
+    const { subject, body, userId, design } = req.body ?? {};
+    if (typeof subject !== 'string' || !subject.trim()) {
+      res.status(400).json({ error: 'subject is required' });
+      return;
+    }
+    if (typeof body !== 'string' || !body.trim()) {
+      res.status(400).json({ error: 'body is required' });
+      return;
+    }
+    if (!process.env.RESEND_API_KEY) {
+      res.status(500).json({ error: 'RESEND_API_KEY is not set on the server' });
+      return;
+    }
+    const result = await sendEmailCampaign(
+      parseEmailDesign(design),
+      subject.trim(),
+      body,
+      typeof userId === 'string' && userId ? userId : undefined,
+    );
+    res.json(result);
+  }),
+);
+
+// Renders the same HTML that would actually be sent, without sending
+// anything - lets the admin see what a design looks like before committing.
+adminRouter.post(
+  '/admin/api/email-preview',
+  asyncHandler(async (req, res) => {
+    const { subject, body, design } = req.body ?? {};
+    const html = renderEmailHtml(
+      parseEmailDesign(design),
+      typeof subject === 'string' ? subject : '',
+      typeof body === 'string' ? body : '',
+      'Alex',
+    );
+    res.type('html').send(html);
+  }),
+);
+
+// --- Announcements (Communication module) ---
+
+const ANNOUNCEMENT_TYPES = ['update', 'info', 'tip', 'prompt', 'promo', 'poll', 'security'];
+const ANNOUNCEMENT_TARGETS = ['all', 'new', 'active', 'inactive'];
+
+function parseAnnouncementInput(body: unknown): { input: AnnouncementInput; saveAsDraft: boolean } | { error: string } {
+  const { title, content, imageUrl, type, target, pinned, sendEmail, publishAt, expiresAt, saveAsDraft } =
+    (body ?? {}) as Record<string, unknown>;
+
+  if (typeof title !== 'string' || !title.trim()) return { error: 'title is required' };
+  if (typeof content !== 'string' || !content.trim()) return { error: 'content is required' };
+  if (typeof type !== 'string' || !ANNOUNCEMENT_TYPES.includes(type)) return { error: 'type is invalid' };
+  if (typeof target !== 'string' || !ANNOUNCEMENT_TARGETS.includes(target)) return { error: 'target is invalid' };
+
+  const parsedPublishAt = publishAt ? new Date(publishAt as string) : new Date();
+  if (Number.isNaN(parsedPublishAt.getTime())) return { error: 'publishAt is invalid' };
+  const parsedExpiresAt = expiresAt ? new Date(expiresAt as string) : null;
+  if (parsedExpiresAt && Number.isNaN(parsedExpiresAt.getTime())) return { error: 'expiresAt is invalid' };
+
+  return {
+    input: {
+      title: title.trim(),
+      content,
+      imageUrl: typeof imageUrl === 'string' && imageUrl.trim() ? imageUrl.trim() : null,
+      type: type as AnnouncementInput['type'],
+      target: target as AnnouncementInput['target'],
+      pinned: Boolean(pinned),
+      sendEmail: Boolean(sendEmail),
+      publishAt: parsedPublishAt,
+      expiresAt: parsedExpiresAt,
+    },
+    saveAsDraft: Boolean(saveAsDraft),
+  };
+}
+
+adminRouter.get(
+  '/admin/api/announcements',
+  asyncHandler(async (req, res) => {
+    const { type, status, target, search } = req.query;
+    res.json(
+      await listAnnouncements({
+        type: typeof type === 'string' ? type : undefined,
+        status: typeof status === 'string' ? status : undefined,
+        target: typeof target === 'string' ? target : undefined,
+        search: typeof search === 'string' ? search : undefined,
+      }),
+    );
+  }),
+);
+
+adminRouter.post(
+  '/admin/api/announcements',
+  asyncHandler(async (req, res) => {
+    const parsed = parseAnnouncementInput(req.body);
+    if ('error' in parsed) {
+      res.status(400).json({ error: parsed.error });
+      return;
+    }
+    res.status(201).json(await createAnnouncement(parsed.input, parsed.saveAsDraft));
+  }),
+);
+
+adminRouter.patch(
+  '/admin/api/announcements/:id',
+  asyncHandler(async (req, res) => {
+    const parsed = parseAnnouncementInput(req.body);
+    if ('error' in parsed) {
+      res.status(400).json({ error: parsed.error });
+      return;
+    }
+    const announcement = await updateAnnouncement(req.params.id, parsed.input, parsed.saveAsDraft);
+    if (!announcement) {
+      res.status(404).json({ error: 'Announcement not found' });
+      return;
+    }
+    res.json(announcement);
+  }),
+);
+
+adminRouter.post(
+  '/admin/api/announcements/:id/duplicate',
+  asyncHandler(async (req, res) => {
+    const announcement = await duplicateAnnouncement(req.params.id);
+    if (!announcement) {
+      res.status(404).json({ error: 'Announcement not found' });
+      return;
+    }
+    res.status(201).json(announcement);
+  }),
+);
+
+adminRouter.post(
+  '/admin/api/announcements/:id/archive',
+  asyncHandler(async (req, res) => {
+    const announcement = await archiveAnnouncement(req.params.id);
+    if (!announcement) {
+      res.status(404).json({ error: 'Announcement not found' });
+      return;
+    }
+    res.json(announcement);
+  }),
+);
+
+adminRouter.delete(
+  '/admin/api/announcements/:id',
+  asyncHandler(async (req, res) => {
+    const deleted = await deleteAnnouncement(req.params.id);
+    if (!deleted) {
+      res.status(404).json({ error: 'Announcement not found' });
       return;
     }
     res.status(204).end();

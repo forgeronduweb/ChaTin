@@ -98,3 +98,60 @@ export const appReleases = pgTable('app_releases', {
   notes: text('notes'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
+
+export const emailTemplates = pgTable('email_templates', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  subject: text('subject').notNull(),
+  // Plain text with a "{{name}}" placeholder, not HTML - kept simple like the
+  // rest of the dashboard's hand-rolled tools. Wrapped in the branded HTML
+  // shell at send time (see email.ts).
+  body: text('body').notNull(),
+  // Which of the hand-built HTML layouts in email.ts wraps this template's
+  // text - 'announcement' (sober card), 'promo' (bold banner), 'newsletter'
+  // (dark masthead + footer). See EMAIL_DESIGNS in email.ts.
+  design: text('design', { enum: ['announcement', 'promo', 'newsletter'] }).notNull().default('announcement'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+// One row per "send" action from the dashboard - a log, not a queue (sends
+// happen synchronously in the request). Lets the admin see what went out and
+// to how many people without re-reading their email client.
+export const emailCampaigns = pgTable('email_campaigns', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  subject: text('subject').notNull(),
+  body: text('body').notNull(),
+  design: text('design', { enum: ['announcement', 'promo', 'newsletter'] }).notNull().default('announcement'),
+  recipientCount: integer('recipient_count').notNull(),
+  failureCount: integer('failure_count').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+// The Communication module's core content type. `content` uses the same
+// lightweight markdown (**bold**, *italic*, paragraphs) as chat messages -
+// the app renders it with the same <MessageContent> component, so there's
+// no second parser to maintain and no rich-text-editor dependency to add.
+export const announcements = pgTable('announcements', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  title: text('title').notNull(),
+  content: text('content').notNull(),
+  imageUrl: text('image_url'),
+  type: text('type', { enum: ['update', 'info', 'tip', 'prompt', 'promo', 'poll', 'security'] })
+    .notNull()
+    .default('info'),
+  // 'scheduled' and 'published' are both live states, just before/after
+  // publishAt - announcements-scheduler.ts flips scheduled->published and
+  // published->expired on a timer so the admin never has to do it by hand.
+  status: text('status', { enum: ['draft', 'scheduled', 'published', 'expired', 'archived'] })
+    .notNull()
+    .default('draft'),
+  target: text('target', { enum: ['all', 'new', 'active', 'inactive'] }).notNull().default('all'),
+  pinned: boolean('pinned').notNull().default(false),
+  sendEmail: boolean('send_email').notNull().default(false),
+  emailSentAt: timestamp('email_sent_at'),
+  publishAt: timestamp('publish_at').notNull().defaultNow(),
+  expiresAt: timestamp('expires_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});

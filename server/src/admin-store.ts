@@ -1,15 +1,19 @@
-import { count, desc, eq, gt, gte, ilike, max, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lte, max, or, sql } from 'drizzle-orm';
 import { db } from './db/client.js';
 import {
   adminNotificationState,
+  announcements,
   appReleases,
   conversations,
+  emailCampaigns,
+  emailTemplates,
   feedback,
   messages,
   prompts,
   sessions,
   users,
 } from './db/schema.js';
+import { type EmailDesign, renderEmailHtml, sendEmail } from './email.js';
 
 function startOfToday(): Date {
   const d = new Date();
@@ -189,6 +193,28 @@ export async function getAnalyticsReport() {
   const registrationRate = conversationCount > 0 ? (registeredConversations / conversationCount) * 100 : 0;
   const activityRate = totalUsers > 0 ? (Number(activeUsersWeek) / totalUsers) * 100 : 0;
 
+  // Sequential, not folded into the Promise.all above - that batch is
+  // already sized to the connection pool (see db/client.ts), and growing it
+  // further per new module is exactly what caused the admin dashboard hangs
+  // fixed earlier. Two more round trips here cost a little latency, not a
+  // pool slot fight.
+  const announcementsTrend = await db
+    .select({ day: sql<string>`to_char(${announcements.publishAt}, 'YYYY-MM-DD')`, count: count() })
+    .from(announcements)
+    .where(gte(announcements.publishAt, sql`now() - interval '29 days'`))
+    .groupBy(sql`1`)
+    .orderBy(sql`1`);
+
+  const emailsTrend = await db
+    .select({
+      day: sql<string>`to_char(${emailCampaigns.createdAt}, 'YYYY-MM-DD')`,
+      count: sql<number>`coalesce(sum(${emailCampaigns.recipientCount}), 0)`.mapWith(Number),
+    })
+    .from(emailCampaigns)
+    .where(gte(emailCampaigns.createdAt, sql`now() - interval '29 days'`))
+    .groupBy(sql`1`)
+    .orderBy(sql`1`);
+
   return {
     totalPrompts,
     totalFeedbackCount,
@@ -197,6 +223,8 @@ export async function getAnalyticsReport() {
     registeredVsGuest: { registered: registeredConversations, guest: guestConversations },
     registrationTrend,
     usageTrend,
+    announcementsTrend,
+    emailsTrend,
   };
 }
 
@@ -383,4 +411,283 @@ export async function createRelease(input: ReleaseInput) {
 export async function deleteRelease(id: string): Promise<boolean> {
   const deleted = await db.delete(appReleases).where(eq(appReleases.id, id)).returning({ id: appReleases.id });
   return deleted.length > 0;
+}
+
+// ---------- Email templates ----------
+
+export async function listEmailTemplates() {
+  return db.select().from(emailTemplates).orderBy(desc(emailTemplates.updatedAt));
+}
+
+export type EmailTemplateInput = { name: string; subject: string; body: string; design: EmailDesign };
+
+export async function createEmailTemplate(input: EmailTemplateInput) {
+  const [row] = await db.insert(emailTemplates).values(input).returning();
+  return row;
+}
+
+export async function updateEmailTemplate(id: string, input: Partial<EmailTemplateInput>) {
+  const [row] = await db
+    .update(emailTemplates)
+    .set({ ...input, updatedAt: new Date() })
+    .where(eq(emailTemplates.id, id))
+    .returning();
+  return row;
+}
+
+export async function deleteEmailTemplate(id: string): Promise<boolean> {
+  const deleted = await db.delete(emailTemplates).where(eq(emailTemplates.id, id)).returning({ id: emailTemplates.id });
+  return deleted.length > 0;
+}
+
+// ---------- Email campaigns (compose + send) ----------
+
+export async function listEmailCampaigns() {
+  return db.select().from(emailCampaigns).orderBy(desc(emailCampaigns.createdAt));
+}
+
+const ACTIVITY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Shared by the manual "compose an email" flow and announcements' "send by
+// email" option - a target segment resolves to the same recipient set
+// either way. Suspended accounts stay reachable on purpose for 'all' (a
+// campaign is exactly the kind of thing that might need to reach someone
+// about why their account was suspended).
+async function listUsersInSegment(target: 'all' | 'new' | 'active' | 'inactive'): Promise<{ name: string; email: string }[]> {
+  const since = new Date(Date.now() - ACTIVITY_WINDOW_MS);
+
+  if (target === 'all') {
+    const rows = await db.select({ name: users.name, email: users.email }).from(users);
+    return rows.filter((row) => row.email);
+  }
+  if (target === 'new') {
+    const rows = await db.select({ name: users.name, email: users.email }).from(users).where(gte(users.createdAt, since));
+    return rows.filter((row) => row.email);
+  }
+
+  const recentSessions = await db.selectDistinct({ userId: sessions.userId }).from(sessions).where(gte(sessions.createdAt, since));
+  const activeIds = new Set(recentSessions.map((row) => row.userId));
+  const allUsers = await db.select({ id: users.id, name: users.name, email: users.email }).from(users);
+  const inSegment = target === 'active' ? allUsers.filter((u) => activeIds.has(u.id)) : allUsers.filter((u) => !activeIds.has(u.id));
+  return inSegment.filter((u) => u.email).map((u) => ({ name: u.name, email: u.email }));
+}
+
+export type SendCampaignResult = { recipientCount: number; failureCount: number };
+
+// Sends synchronously within the request - fine at this user count (tens,
+// not thousands). A ~500ms gap between sends stays comfortably under
+// Resend's free-tier rate limit (2 req/s) without needing a queue.
+async function sendToRecipients(
+  design: EmailDesign,
+  subject: string,
+  body: string,
+  recipients: { name: string; email: string }[],
+): Promise<SendCampaignResult> {
+  let failureCount = 0;
+
+  for (const [index, recipient] of recipients.entries()) {
+    if (index > 0) await new Promise((resolve) => setTimeout(resolve, 500));
+    try {
+      await sendEmail(recipient.email, subject, renderEmailHtml(design, subject, body, recipient.name));
+    } catch (error) {
+      failureCount += 1;
+      console.error(`Failed to send campaign email to ${recipient.email}:`, error);
+    }
+  }
+
+  await db.insert(emailCampaigns).values({ subject, body, design, recipientCount: recipients.length, failureCount });
+  return { recipientCount: recipients.length, failureCount };
+}
+
+export async function sendEmailCampaign(
+  design: EmailDesign,
+  subject: string,
+  body: string,
+  userId?: string,
+): Promise<SendCampaignResult> {
+  if (userId) {
+    const [user] = await db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, userId));
+    return sendToRecipients(design, subject, body, user && user.email ? [user] : []);
+  }
+  return sendToRecipients(design, subject, body, await listUsersInSegment('all'));
+}
+
+// ---------- Announcements (Communication module) ----------
+
+export type AnnouncementType = 'update' | 'info' | 'tip' | 'prompt' | 'promo' | 'poll' | 'security';
+export type AnnouncementStatus = 'draft' | 'scheduled' | 'published' | 'expired' | 'archived';
+export type AnnouncementTarget = 'all' | 'new' | 'active' | 'inactive';
+
+export type AnnouncementInput = {
+  title: string;
+  content: string;
+  imageUrl?: string | null;
+  type: AnnouncementType;
+  target: AnnouncementTarget;
+  pinned: boolean;
+  sendEmail: boolean;
+  publishAt: Date;
+  expiresAt?: Date | null;
+};
+
+function deriveStatus(publishAt: Date, saveAsDraft: boolean): AnnouncementStatus {
+  if (saveAsDraft) return 'draft';
+  return publishAt.getTime() > Date.now() ? 'scheduled' : 'published';
+}
+
+export async function listAnnouncements(
+  filters: { type?: string; status?: string; target?: string; search?: string } = {},
+) {
+  const conditions = [];
+  if (filters.type) conditions.push(eq(announcements.type, filters.type as AnnouncementType));
+  if (filters.status) conditions.push(eq(announcements.status, filters.status as AnnouncementStatus));
+  if (filters.target) conditions.push(eq(announcements.target, filters.target as AnnouncementTarget));
+  if (filters.search) conditions.push(ilike(announcements.title, `%${filters.search}%`));
+
+  const base = db.select().from(announcements);
+  const filtered = conditions.length > 0 ? base.where(and(...conditions)) : base;
+  return filtered.orderBy(desc(announcements.pinned), desc(announcements.createdAt));
+}
+
+export async function getAnnouncement(id: string) {
+  const [row] = await db.select().from(announcements).where(eq(announcements.id, id));
+  return row;
+}
+
+export async function createAnnouncement(input: AnnouncementInput, saveAsDraft: boolean) {
+  const status = deriveStatus(input.publishAt, saveAsDraft);
+  const [row] = await db.insert(announcements).values({ ...input, status }).returning();
+  if (status === 'published') await sendAnnouncementEmailIfNeeded(row.id);
+  return row;
+}
+
+export async function updateAnnouncement(id: string, input: Partial<AnnouncementInput>, saveAsDraft: boolean) {
+  const patch: Record<string, unknown> = { ...input, updatedAt: new Date() };
+  if (input.publishAt) patch.status = deriveStatus(input.publishAt, saveAsDraft);
+  else if (saveAsDraft) patch.status = 'draft';
+
+  const [row] = await db.update(announcements).set(patch).where(eq(announcements.id, id)).returning();
+  if (row && row.status === 'published') await sendAnnouncementEmailIfNeeded(row.id);
+  return row;
+}
+
+export async function archiveAnnouncement(id: string) {
+  const [row] = await db
+    .update(announcements)
+    .set({ status: 'archived', updatedAt: new Date() })
+    .where(eq(announcements.id, id))
+    .returning();
+  return row;
+}
+
+export async function duplicateAnnouncement(id: string) {
+  const original = await getAnnouncement(id);
+  if (!original) return undefined;
+  const [row] = await db
+    .insert(announcements)
+    .values({
+      title: `${original.title} (copie)`,
+      content: original.content,
+      imageUrl: original.imageUrl,
+      type: original.type,
+      target: original.target,
+      pinned: false,
+      sendEmail: false,
+      status: 'draft',
+      publishAt: new Date(),
+      expiresAt: original.expiresAt,
+    })
+    .returning();
+  return row;
+}
+
+export async function deleteAnnouncement(id: string): Promise<boolean> {
+  const deleted = await db.delete(announcements).where(eq(announcements.id, id)).returning({ id: announcements.id });
+  return deleted.length > 0;
+}
+
+// Fires when an announcement first becomes 'published' (on creation, on
+// edit, or from the scheduler flipping a scheduled one live) - emailSentAt
+// makes it idempotent so the same announcement never gets mailed twice.
+export async function sendAnnouncementEmailIfNeeded(id: string): Promise<void> {
+  const announcement = await getAnnouncement(id);
+  if (!announcement || !announcement.sendEmail || announcement.emailSentAt) return;
+  if (!process.env.RESEND_API_KEY) return;
+
+  try {
+    // Always the sober 'announcement' design, regardless of what an admin
+    // might pick for a manual send - an announcement's email should look
+    // like the announcement, not a promo, no matter which design happens
+    // to be selected in the (unrelated) compose form at the time.
+    await sendToRecipients('announcement', announcement.title, announcement.content, await listUsersInSegment(announcement.target));
+    await db.update(announcements).set({ emailSentAt: new Date() }).where(eq(announcements.id, id));
+  } catch (error) {
+    console.error(`Failed to send announcement email for ${id}:`, error);
+  }
+}
+
+// Run on a timer (see announcements-scheduler.ts) - lets "programmer la
+// publication" / "date d'expiration" actually take effect without the admin
+// needing to come back and flip a status by hand.
+export async function syncAnnouncementStatuses(): Promise<void> {
+  const now = new Date();
+
+  const newlyPublished = await db
+    .update(announcements)
+    .set({ status: 'published', updatedAt: now })
+    .where(and(eq(announcements.status, 'scheduled'), lte(announcements.publishAt, now)))
+    .returning({ id: announcements.id });
+  for (const row of newlyPublished) {
+    await sendAnnouncementEmailIfNeeded(row.id);
+  }
+
+  await db
+    .update(announcements)
+    .set({ status: 'expired', updatedAt: now })
+    .where(and(eq(announcements.status, 'published'), isNotNull(announcements.expiresAt), lte(announcements.expiresAt, now)));
+}
+
+// App-facing: only what's actually live right now for this user (guests -
+// no userId - only ever see 'all'-targeted announcements, since there's no
+// persistent identity to compute a segment for).
+export async function listAnnouncementsForUser(userId?: string) {
+  const now = new Date();
+  const targets: AnnouncementTarget[] = ['all'];
+
+  if (userId) {
+    const [user] = await db.select({ createdAt: users.createdAt }).from(users).where(eq(users.id, userId));
+    if (user) {
+      const since = new Date(Date.now() - ACTIVITY_WINDOW_MS);
+      if (user.createdAt >= since) {
+        targets.push('new');
+      } else {
+        const [recentSession] = await db
+          .select({ userId: sessions.userId })
+          .from(sessions)
+          .where(and(eq(sessions.userId, userId), gte(sessions.createdAt, since)))
+          .limit(1);
+        targets.push(recentSession ? 'active' : 'inactive');
+      }
+    }
+  }
+
+  return db
+    .select({
+      id: announcements.id,
+      title: announcements.title,
+      content: announcements.content,
+      imageUrl: announcements.imageUrl,
+      type: announcements.type,
+      pinned: announcements.pinned,
+      publishAt: announcements.publishAt,
+    })
+    .from(announcements)
+    .where(
+      and(
+        eq(announcements.status, 'published'),
+        inArray(announcements.target, targets),
+        or(isNull(announcements.expiresAt), gt(announcements.expiresAt, now)),
+      ),
+    )
+    .orderBy(desc(announcements.pinned), desc(announcements.publishAt));
 }

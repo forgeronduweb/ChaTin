@@ -71,6 +71,39 @@ export const DASHBOARD_HTML = `<!doctype html>
   .search-input:focus, .form-input:focus, .form-select:focus { border-color: var(--ink); }
   .form-input, .form-select { width: 100%; }
 
+  /* Custom dropdown: a native <select>'s own popped-open option list can't
+     be restyled cross-browser (font, colors, hover, selected highlight all
+     stay OS chrome no matter what CSS is applied to the select itself) -
+     the only way to actually match the rest of this UI is to hide the real
+     <select> (kept only so existing code can still read/set .value and get
+     a real 'change' event) and drive a fully custom trigger+list off it. */
+  .native-select-hidden { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+  .custom-select { position: relative; width: 100%; }
+  .filter-row .custom-select { width: auto; min-width: 170px; }
+  .custom-select-trigger {
+    width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    font-family: inherit; font-weight: 600; font-size: 14px; color: var(--ink); text-align: left;
+    border: 1px solid var(--border); background: var(--white); border-radius: var(--radius-sm);
+    padding: 9px 14px; cursor: pointer; transition: border-color .15s;
+  }
+  .custom-select-trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .custom-select-trigger:hover, .custom-select-trigger.open { border-color: var(--ink-muted); }
+  .custom-select-trigger svg { width: 15px; height: 15px; flex-shrink: 0; color: var(--text-muted); transition: transform .15s; }
+  .custom-select-trigger.open svg { transform: rotate(180deg); }
+  .custom-select-list {
+    display: none; position: absolute; left: 0; right: 0; top: calc(100% + 4px); max-height: 260px; overflow-y: auto;
+    background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-md);
+    box-shadow: 0 8px 24px rgba(22,22,22,0.14); padding: 6px; z-index: 30;
+  }
+  .custom-select-list.open { display: block; }
+  .custom-select-item {
+    display: block; width: 100%; padding: 9px 12px; border-radius: var(--radius-sm); border: none;
+    background: none; font-family: inherit; font-size: 13.5px; font-weight: 600; color: var(--ink);
+    cursor: pointer; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .custom-select-item:hover { background: var(--cream); }
+  .custom-select-item.selected { background: rgba(246,196,69,0.3); font-weight: 800; }
+
   .btn {
     font-family: inherit; font-weight: 700; font-size: 13.5px; border-radius: var(--radius-sm); border: 1px solid transparent;
     padding: 9px 16px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background .15s, border-color .15s, color .15s;
@@ -239,6 +272,36 @@ export const DASHBOARD_HTML = `<!doctype html>
   .btn-prompt-delete:hover { background: #000; border-color: #000; }
   .prompt-featured { position: absolute; top: 14px; right: 14px; font-size: 10.5px; font-weight: 700; background: var(--ink); color: var(--white); padding: 3px 10px; border-radius: 999px; }
 
+  /* Communication */
+  .comm-subtabs { display: flex; gap: 8px; margin-bottom: 20px; }
+  .comm-subview { display: none; }
+  .comm-subview.active { display: block; }
+  /* Modèles + Historique share one column, side by side with Composer -
+     not three cards stacked one under another down the page. */
+  .comm-email-layout { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; align-items: start; }
+  .comm-email-side { display: flex; flex-direction: column; gap: 20px; }
+  .simple-list { display: flex; flex-direction: column; }
+  .simple-list-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+    padding: 12px 0; border-bottom: 1px solid var(--border);
+  }
+  .simple-list-item:last-child { border-bottom: none; }
+  .simple-list-title { font-weight: 700; font-size: 13.5px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .simple-list-meta { font-size: 12px; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+  .filter-row { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+  .filter-row .search-input { flex: 1; min-width: 180px; }
+  .type-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 11px; border-radius: 999px; font-size: 11px; font-weight: 700; background: var(--paper); color: var(--ink-muted); white-space: nowrap; }
+  .badge-draft { background: var(--paper); color: var(--ink-muted); }
+  .badge-scheduled { background: rgba(142,197,252,0.25); color: #2a5f8f; }
+  .badge-published { background: rgba(63,190,122,0.15); color: #1F8A50; }
+  .badge-expired { background: rgba(140,135,111,0.18); color: var(--text-muted); }
+  .badge-archived { background: rgba(224,85,90,0.12); color: var(--red); }
+  .announcement-title-cell { font-weight: 700; max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .preview-card { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 20px; }
+  .preview-card img { width: 100%; border-radius: var(--radius-sm); margin-bottom: 14px; display: block; }
+  .preview-card h3 { margin: 0 0 10px; font-size: 17px; }
+  .preview-card p { margin: 0 0 12px; font-size: 14px; line-height: 1.6; }
+
   /* Modal */
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(22,22,22,0.5); display: none;
@@ -294,6 +357,10 @@ export const DASHBOARD_HTML = `<!doctype html>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
       Retours
       <span class="nav-badge" id="badge-feedback">0</span>
+    </button>
+    <button class="nav-item" data-view="communication" style="--accent:#F3A7C7">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+      Communication
     </button>
     <button class="nav-item" data-view="report" style="--accent:#8EC5FC">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18.7 8 13 13.7l-3-3L4.3 16.4"/></svg>
@@ -534,6 +601,139 @@ export const DASHBOARD_HTML = `<!doctype html>
       </div>
     </section>
 
+    <!-- Communication -->
+    <section class="view" id="view-communication">
+      <div class="view-header">
+        <h1 class="view-title">Communication</h1>
+      </div>
+
+      <div class="comm-subtabs">
+        <button class="btn btn-primary comm-subtab" data-subtab="announcements">Annonces</button>
+        <button class="btn btn-outline comm-subtab" data-subtab="email">Email</button>
+      </div>
+
+      <!-- Annonces -->
+      <div class="comm-subview active" id="comm-announcements">
+        <div class="filter-row">
+          <select class="form-select" id="announcement-filter-type">
+            <option value="">Tous les types</option>
+            <option value="update">🚀 Mise à jour</option>
+            <option value="info">ℹ️ Information</option>
+            <option value="tip">💡 Astuce</option>
+            <option value="prompt">⭐ Prompt recommandé</option>
+            <option value="promo">🎁 Promotion</option>
+            <option value="poll">📊 Sondage</option>
+            <option value="security">🔒 Sécurité</option>
+          </select>
+          <select class="form-select" id="announcement-filter-status">
+            <option value="">Tous les statuts</option>
+            <option value="draft">Brouillon</option>
+            <option value="scheduled">Programmée</option>
+            <option value="published">Publiée</option>
+            <option value="expired">Expirée</option>
+            <option value="archived">Archivée</option>
+          </select>
+          <select class="form-select" id="announcement-filter-target">
+            <option value="">Tous les publics</option>
+            <option value="all">Tous les utilisateurs</option>
+            <option value="new">Nouveaux</option>
+            <option value="active">Actifs</option>
+            <option value="inactive">Inactifs</option>
+          </select>
+          <input class="form-input search-input" id="announcement-search" placeholder="Rechercher un titre…" />
+          <button class="btn btn-primary" id="add-announcement-btn" style="margin-left:auto;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M12 5v14M5 12h14"/></svg>
+            Nouvelle annonce
+          </button>
+        </div>
+        <div class="panel">
+          <table>
+            <thead><tr><th>Titre</th><th>Type</th><th>Public</th><th>Statut</th><th>Publiée le</th><th>Expire le</th><th>Email</th><th></th></tr></thead>
+            <tbody id="announcements-body"></tbody>
+          </table>
+          <div class="loading" id="announcements-loading">Chargement…</div>
+          <div class="empty" id="announcements-empty" style="display:none">Aucune annonce pour le moment.</div>
+        </div>
+      </div>
+
+      <!-- Email -->
+      <div class="comm-subview" id="comm-email">
+       <div class="comm-email-layout">
+        <div class="card" style="margin-bottom:0">
+          <h3>Composer un email</h3>
+          <p class="muted" style="background:rgba(246,196,69,0.18); border-radius:var(--radius-sm); padding:10px 14px; margin:-8px 0 16px; font-size:12.5px; line-height:1.5;">
+            Resend est en mode test : tant qu'aucun domaine n'est vérifié (resend.com/domains), les emails ne partent que vers ta propre adresse Resend, pas vers tes utilisateurs.
+          </p>
+          <form id="campaign-form">
+            <div class="form-row">
+              <label for="campaign-template">Partir d'un modèle (optionnel)</label>
+              <select class="form-select" id="campaign-template">
+                <option value="">— Écrire à partir de zéro —</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label for="campaign-recipient">Destinataire</label>
+              <select class="form-select" id="campaign-recipient">
+                <option value="">Tous les utilisateurs</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label for="campaign-design">Design</label>
+              <select class="form-select" id="campaign-design">
+                <option value="announcement">Annonce (sobre)</option>
+                <option value="promo">Promo (bandeau coloré)</option>
+                <option value="newsletter">Newsletter (grand en-tête)</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label for="campaign-subject">Objet</label>
+              <input class="form-input" id="campaign-subject" required />
+            </div>
+            <div class="form-row">
+              <label for="campaign-body">Message</label>
+              <textarea class="form-input" id="campaign-body" rows="9" required placeholder="Utilise {{name}} pour insérer le prénom du destinataire. Une ligne vide sépare deux paragraphes."></textarea>
+            </div>
+            <div class="modal-actions" style="justify-content:space-between; margin-top:16px; flex-wrap:wrap; gap:12px;">
+              <span class="muted" id="campaign-recipient-count" style="font-weight:600; font-size:13px;"></span>
+              <div style="display:flex; gap:12px;">
+                <button type="button" class="btn btn-outline" id="campaign-preview-btn">Aperçu</button>
+                <button type="button" class="btn btn-outline" id="save-as-template-btn">Enregistrer comme modèle</button>
+                <button type="submit" class="btn btn-primary" id="campaign-send-btn">Envoyer</button>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <div class="comm-email-side">
+          <div class="card" style="margin-bottom:0">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+              <h3 style="margin:0">Modèles</h3>
+              <button class="btn btn-outline btn-sm" id="add-template-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><path d="M12 5v14M5 12h14"/></svg>
+                Nouveau modèle
+              </button>
+            </div>
+            <div class="panel" style="height:auto; max-height:none; overflow-x:auto; overflow-y:visible; border:none;">
+              <table>
+                <thead><tr><th>Nom</th><th>Objet</th><th>Design</th><th>Modifié le</th><th></th></tr></thead>
+                <tbody id="templates-body"></tbody>
+              </table>
+              <div class="loading" id="templates-loading">Chargement…</div>
+              <div class="empty" id="templates-empty" style="display:none">Aucun modèle pour le moment.</div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-bottom:0">
+            <h3>Historique des envois</h3>
+            <div id="campaigns-list" class="simple-list"></div>
+            <div class="loading" id="campaigns-loading">Chargement…</div>
+            <div class="empty" id="campaigns-empty" style="display:none">Aucun envoi pour le moment.</div>
+          </div>
+        </div>
+       </div>
+      </div>
+    </section>
+
     <!-- Rapport -->
     <section class="view" id="view-report">
       <div class="view-header"><h1 class="view-title">Rapport</h1></div>
@@ -571,6 +771,14 @@ export const DASHBOARD_HTML = `<!doctype html>
         <div class="card" style="margin-bottom:0">
           <h3>Inscrits vs invités</h3>
           <div class="donut-wrap" id="donut-registered"></div>
+        </div>
+        <div class="card" style="margin-bottom:0">
+          <h3>Annonces publiées (30 derniers jours)</h3>
+          <div class="chart-line-wrap" id="chart-announcements"></div>
+        </div>
+        <div class="card" style="margin-bottom:0">
+          <h3>Emails envoyés (30 derniers jours)</h3>
+          <div class="chart-line-wrap" id="chart-emails"></div>
         </div>
       </div>
     </section>
@@ -657,6 +865,137 @@ export const DASHBOARD_HTML = `<!doctype html>
     </div>
   </div>
 
+  <!-- Email template form modal -->
+  <div class="modal-overlay" id="template-modal">
+    <div class="modal">
+      <button class="modal-close" data-close="template-modal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      <h2 id="template-modal-title">Nouveau modèle</h2>
+      <form id="template-form">
+        <input type="hidden" id="template-id" />
+        <div class="form-row">
+          <label for="template-name">Nom du modèle</label>
+          <input class="form-input" id="template-name" placeholder="Ex: Bienvenue, Relance, Nouveauté…" required />
+        </div>
+        <div class="form-row">
+          <label for="template-subject">Objet</label>
+          <input class="form-input" id="template-subject" required />
+        </div>
+        <div class="form-row">
+          <label for="template-design">Design</label>
+          <select class="form-select" id="template-design">
+            <option value="announcement">Annonce (sobre)</option>
+            <option value="promo">Promo (bandeau coloré)</option>
+            <option value="newsletter">Newsletter (grand en-tête)</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label for="template-body">Message</label>
+          <textarea class="form-input" id="template-body" rows="9" required placeholder="Utilise {{name}} pour insérer le prénom du destinataire."></textarea>
+        </div>
+        <div class="modal-actions" style="justify-content:space-between;">
+          <button type="button" class="btn btn-outline" id="template-preview-btn">Aperçu</button>
+          <div style="display:flex; gap:10px;">
+            <button type="button" class="btn btn-outline" data-close="template-modal">Annuler</button>
+            <button type="submit" class="btn btn-primary">Enregistrer</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Announcement form modal -->
+  <div class="modal-overlay" id="announcement-modal">
+    <div class="modal" style="max-width:560px">
+      <button class="modal-close" data-close="announcement-modal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      <h2 id="announcement-modal-title">Nouvelle annonce</h2>
+      <form id="announcement-form">
+        <input type="hidden" id="announcement-id" />
+        <div class="form-row">
+          <label for="announcement-title">Titre</label>
+          <input class="form-input" id="announcement-title" required />
+        </div>
+        <div class="form-row">
+          <label for="announcement-content">Contenu</label>
+          <textarea class="form-input" id="announcement-content" rows="7" required placeholder="**Gras**, *italique*, une ligne vide sépare deux paragraphes."></textarea>
+        </div>
+        <div class="form-row">
+          <label for="announcement-image">Image (URL, optionnel)</label>
+          <input class="form-input" id="announcement-image" placeholder="https://…" />
+        </div>
+        <div class="form-row" style="display:flex; gap:14px;">
+          <div style="flex:1">
+            <label for="announcement-type">Type</label>
+            <select class="form-select" id="announcement-type">
+              <option value="update">🚀 Mise à jour</option>
+              <option value="info">ℹ️ Information importante</option>
+              <option value="tip">💡 Astuce</option>
+              <option value="prompt">⭐ Prompt recommandé</option>
+              <option value="promo">🎁 Promotion</option>
+              <option value="poll">📊 Sondage</option>
+              <option value="security">🔒 Sécurité</option>
+            </select>
+          </div>
+          <div style="flex:1">
+            <label for="announcement-target">Public cible</label>
+            <select class="form-select" id="announcement-target">
+              <option value="all">Tous les utilisateurs</option>
+              <option value="new">Nouveaux utilisateurs</option>
+              <option value="active">Utilisateurs actifs</option>
+              <option value="inactive">Utilisateurs inactifs</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row" style="display:flex; gap:14px;">
+          <div style="flex:1">
+            <label for="announcement-publish-at">Publication</label>
+            <input class="form-input" id="announcement-publish-at" type="datetime-local" required />
+          </div>
+          <div style="flex:1">
+            <label for="announcement-expires-at">Expiration (optionnel)</label>
+            <input class="form-input" id="announcement-expires-at" type="datetime-local" />
+          </div>
+        </div>
+        <div class="form-row checkbox-row">
+          <input type="checkbox" id="announcement-pinned" />
+          <label for="announcement-pinned">📌 Épingler en haut de l'application</label>
+        </div>
+        <div class="form-row checkbox-row">
+          <input type="checkbox" id="announcement-send-email" />
+          <label for="announcement-send-email">📧 Envoyer aussi par email au public ciblé</label>
+        </div>
+        <div class="modal-actions" style="justify-content:space-between; flex-wrap:wrap;">
+          <div style="display:flex; gap:10px;">
+            <button type="button" class="btn btn-outline" data-close="announcement-modal">Annuler</button>
+            <button type="button" class="btn btn-outline" id="announcement-preview-btn">Aperçu</button>
+          </div>
+          <div style="display:flex; gap:10px;">
+            <button type="submit" class="btn btn-outline" id="announcement-draft-btn">Enregistrer comme brouillon</button>
+            <button type="submit" class="btn btn-primary" id="announcement-publish-btn">Publier</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Announcement preview modal -->
+  <div class="modal-overlay" id="announcement-preview-modal">
+    <div class="modal" style="max-width:420px">
+      <button class="modal-close" data-close="announcement-preview-modal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      <h2>Aperçu</h2>
+      <div class="preview-card" id="announcement-preview-body"></div>
+    </div>
+  </div>
+
+  <!-- Email design preview modal - shows the actual rendered HTML the
+       recipient would get, since the 3 designs differ enough (banner vs
+       masthead vs plain card) that a text description wouldn't do. -->
+  <div class="modal-overlay" id="email-preview-modal">
+    <div class="modal" style="max-width:560px; padding:16px;">
+      <button class="modal-close" data-close="email-preview-modal" style="margin:10px 10px 0 0;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      <iframe id="email-preview-frame" title="Aperçu de l'email" style="width:100%; height:70vh; border:none; border-radius:var(--radius-md); background:#fff;"></iframe>
+    </div>
+  </div>
+
   <script>
     // Keep in sync with CARD_COLORS in server/src/auto-prompts.ts.
     const COLORS = ['#F6C445', '#F3A7C7', '#3FBE7A', '#8EC5FC', '#C9A7F3', '#FFB4A2', '#FFD6A5', '#A0E7E5', '#B8E0D2'];
@@ -721,10 +1060,112 @@ export const DASHBOARD_HTML = `<!doctype html>
       return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
     }
 
+    // ---------- Custom dropdowns ----------
+    // Wraps a native <select> with a fully custom-styled trigger+list, since
+    // the native option popup can't be restyled to match the rest of the
+    // dashboard in any cross-browser way. The <select> itself stays in the
+    // DOM (just visually hidden) so every existing call site that reads/sets
+    // .value or listens for 'change' keeps working untouched - this only
+    // replaces how it's presented, not how it's driven.
+    const customSelectRefreshers = {};
+
+    function enhanceSelect(selectEl) {
+      selectEl.classList.add('native-select-hidden');
+      selectEl.tabIndex = -1;
+
+      const wrap = document.createElement('div');
+      wrap.className = 'custom-select';
+      const trigger = document.createElement('button');
+      trigger.type = 'button';
+      trigger.className = 'custom-select-trigger';
+      const list = document.createElement('div');
+      list.className = 'custom-select-list';
+
+      function closeList() {
+        list.classList.remove('open');
+        trigger.classList.remove('open');
+      }
+
+      function renderTrigger() {
+        const current = selectEl.options[selectEl.selectedIndex];
+        trigger.innerHTML =
+          '<span>' + escapeHtml(current ? current.textContent : '') + '</span>' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+      }
+
+      function renderList() {
+        list.innerHTML = Array.from(selectEl.options).map((o) =>
+          '<button type="button" class="custom-select-item' + (o.value === selectEl.value ? ' selected' : '') + '" data-value="' + escapeHtml(o.value) + '">' +
+          escapeHtml(o.textContent) + '</button>',
+        ).join('');
+        list.querySelectorAll('.custom-select-item').forEach((item) => {
+          item.addEventListener('click', () => {
+            selectEl.value = item.dataset.value;
+            selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+            renderTrigger();
+            renderList();
+            closeList();
+          });
+        });
+      }
+
+      trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const willOpen = !list.classList.contains('open');
+        document.querySelectorAll('.custom-select-list.open').forEach((el) => el.classList.remove('open'));
+        document.querySelectorAll('.custom-select-trigger.open').forEach((el) => el.classList.remove('open'));
+        if (willOpen) {
+          list.classList.add('open');
+          trigger.classList.add('open');
+        }
+      });
+
+      renderTrigger();
+      renderList();
+      wrap.appendChild(trigger);
+      wrap.appendChild(list);
+      selectEl.insertAdjacentElement('afterend', wrap);
+
+      customSelectRefreshers[selectEl.id] = () => {
+        renderTrigger();
+        renderList();
+      };
+    }
+
+    function refreshCustomSelect(id) {
+      const refresh = customSelectRefreshers[id];
+      if (refresh) refresh();
+    }
+
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.custom-select-list.open').forEach((el) => el.classList.remove('open'));
+      document.querySelectorAll('.custom-select-trigger.open').forEach((el) => el.classList.remove('open'));
+    });
+
+    [
+      'announcement-filter-type', 'announcement-filter-status', 'announcement-filter-target',
+      'announcement-type', 'announcement-target', 'campaign-template', 'campaign-recipient',
+      'campaign-design', 'template-design',
+    ].forEach((id) => enhanceSelect(document.getElementById(id)));
+
+    async function showEmailPreview(design, subject, body) {
+      const res = await fetch('/admin/api/email-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ design, subject, body }),
+      });
+      const html = await res.text();
+      document.getElementById('email-preview-frame').srcdoc = html;
+      openModal('email-preview-modal');
+    }
+
     // ---------- Home ----------
+    let lastStatsData = null;
     async function loadStats() {
       const res = await fetch('/admin/api/stats');
       const data = await res.json();
+      lastStatsData = data;
+      updateCampaignRecipientCount();
       [
         'totalUsers', 'newUsersToday', 'newUsersWeek', 'newUsersMonth', 'newUsersYear',
         'activeUsersToday', 'activeUsersWeek', 'usersWithActivity', 'totalPrompts',
@@ -776,6 +1217,8 @@ export const DASHBOARD_HTML = `<!doctype html>
       renderLineChart('chart-registrations', data.registrationTrend, PALETTE[0], 'inscriptions');
       renderLineChart('chart-usage', data.usageTrend, PALETTE[1], 'messages');
       renderDonut('donut-registered', data.registeredVsGuest);
+      renderLineChart('chart-announcements', data.announcementsTrend, PALETTE[2], 'annonces');
+      renderLineChart('chart-emails', data.emailsTrend, PALETTE[3], 'emails');
     }
 
     function buildDayRange(n) {
@@ -1146,17 +1589,401 @@ export const DASHBOARD_HTML = `<!doctype html>
       loadFeedback();
     }
 
+    // ---------- Communication ----------
+    let emailTemplatesCache = [];
+    let campaignUsersCache = [];
+
+    async function loadCampaignRecipientOptions() {
+      const res = await fetch('/admin/api/users');
+      campaignUsersCache = await res.json();
+      const select = document.getElementById('campaign-recipient');
+      const currentValue = select.value;
+      select.innerHTML = '<option value="">Tous les utilisateurs</option>' +
+        campaignUsersCache.map((u) => '<option value="' + u.id + '">' + escapeHtml(u.name) + ' — ' + escapeHtml(u.email) + '</option>').join('');
+      select.value = campaignUsersCache.some((u) => u.id === currentValue) ? currentValue : '';
+      refreshCustomSelect('campaign-recipient');
+      updateCampaignRecipientCount();
+    }
+
+    document.getElementById('campaign-recipient').addEventListener('change', () => updateCampaignRecipientCount());
+
+    function updateCampaignRecipientCount() {
+      const el = document.getElementById('campaign-recipient-count');
+      const recipientId = document.getElementById('campaign-recipient').value;
+      if (recipientId) {
+        const user = campaignUsersCache.find((u) => u.id === recipientId);
+        el.textContent = user ? 'Envoi à ' + user.name + ' (' + user.email + ')' : '';
+        return;
+      }
+      el.textContent = lastStatsData
+        ? 'Envoi à tous les utilisateurs inscrits avec un email (' + lastStatsData.totalUsers + ')'
+        : '';
+    }
+
+    const EMAIL_DESIGN_LABELS = { announcement: 'Annonce', promo: 'Promo', newsletter: 'Newsletter' };
+
+    async function loadEmailTemplates() {
+      const res = await fetch('/admin/api/email-templates');
+      emailTemplatesCache = await res.json();
+      const body = document.getElementById('templates-body');
+      document.getElementById('templates-loading').style.display = 'none';
+      document.getElementById('templates-empty').style.display = emailTemplatesCache.length === 0 ? 'block' : 'none';
+      body.innerHTML = emailTemplatesCache.map((t) => \`
+        <tr>
+          <td style="font-weight:700">\${escapeHtml(t.name)}</td>
+          <td class="muted">\${escapeHtml(t.subject)}</td>
+          <td class="muted">\${EMAIL_DESIGN_LABELS[t.design] || t.design}</td>
+          <td class="muted">\${fmtDate(t.updatedAt)}</td>
+          <td><div class="actions-cell">
+            <button class="btn btn-outline btn-sm" data-action="edit-template" data-id="\${t.id}">Modifier</button>
+            <button class="btn btn-danger btn-sm" data-action="delete-template" data-id="\${t.id}">Supprimer</button>
+          </div></td>
+        </tr>\`).join('');
+
+      body.querySelectorAll('[data-action="edit-template"]').forEach((b) => b.addEventListener('click', () => editTemplate(emailTemplatesCache.find((t) => t.id === b.dataset.id))));
+      body.querySelectorAll('[data-action="delete-template"]').forEach((b) => b.addEventListener('click', () => deleteTemplateRow(b)));
+
+      const select = document.getElementById('campaign-template');
+      const currentValue = select.value;
+      select.innerHTML = '<option value="">— Écrire à partir de zéro —</option>' +
+        emailTemplatesCache.map((t) => \`<option value="\${t.id}">\${escapeHtml(t.name)}</option>\`).join('');
+      select.value = emailTemplatesCache.some((t) => t.id === currentValue) ? currentValue : '';
+      refreshCustomSelect('campaign-template');
+    }
+
+    document.getElementById('campaign-template').addEventListener('change', (e) => {
+      const template = emailTemplatesCache.find((t) => t.id === e.target.value);
+      if (!template) return;
+      document.getElementById('campaign-subject').value = template.subject;
+      document.getElementById('campaign-body').value = template.body;
+      document.getElementById('campaign-design').value = template.design;
+      refreshCustomSelect('campaign-design');
+    });
+
+    document.getElementById('add-template-btn').addEventListener('click', () => {
+      document.getElementById('template-modal-title').textContent = 'Nouveau modèle';
+      document.getElementById('template-form').reset();
+      document.getElementById('template-id').value = '';
+      document.getElementById('template-design').value = 'announcement';
+      refreshCustomSelect('template-design');
+      openModal('template-modal');
+    });
+
+    function editTemplate(t) {
+      document.getElementById('template-modal-title').textContent = 'Modifier le modèle';
+      document.getElementById('template-id').value = t.id;
+      document.getElementById('template-name').value = t.name;
+      document.getElementById('template-subject').value = t.subject;
+      document.getElementById('template-body').value = t.body;
+      document.getElementById('template-design').value = t.design;
+      refreshCustomSelect('template-design');
+      openModal('template-modal');
+    }
+
+    document.getElementById('template-preview-btn').addEventListener('click', () => {
+      showEmailPreview(
+        document.getElementById('template-design').value,
+        document.getElementById('template-subject').value,
+        document.getElementById('template-body').value,
+      );
+    });
+
+    document.getElementById('template-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('template-id').value;
+      const payload = {
+        name: document.getElementById('template-name').value,
+        subject: document.getElementById('template-subject').value,
+        body: document.getElementById('template-body').value,
+        design: document.getElementById('template-design').value,
+      };
+      await fetch(id ? '/admin/api/email-templates/' + id : '/admin/api/email-templates', {
+        method: id ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      closeModal('template-modal');
+      loadEmailTemplates();
+    });
+
+    async function deleteTemplateRow(btn) {
+      if (!(await customConfirm('Supprimer ce modèle ?'))) return;
+      btn.disabled = true;
+      await fetch('/admin/api/email-templates/' + btn.dataset.id, { method: 'DELETE' });
+      loadEmailTemplates();
+    }
+
+    document.getElementById('save-as-template-btn').addEventListener('click', async () => {
+      const subject = document.getElementById('campaign-subject').value.trim();
+      const body = document.getElementById('campaign-body').value.trim();
+      const design = document.getElementById('campaign-design').value;
+      if (!subject || !body) {
+        alert("Renseigne l'objet et le message avant d'enregistrer un modèle.");
+        return;
+      }
+      const name = prompt('Nom du modèle :', document.getElementById('campaign-template').selectedOptions[0]?.textContent === '— Écrire à partir de zéro —' ? '' : '');
+      if (!name || !name.trim()) return;
+      await fetch('/admin/api/email-templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), subject, body, design }),
+      });
+      loadEmailTemplates();
+    });
+
+    document.getElementById('campaign-preview-btn').addEventListener('click', () => {
+      showEmailPreview(
+        document.getElementById('campaign-design').value,
+        document.getElementById('campaign-subject').value,
+        document.getElementById('campaign-body').value,
+      );
+    });
+
+    document.getElementById('campaign-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const subject = document.getElementById('campaign-subject').value.trim();
+      const body = document.getElementById('campaign-body').value.trim();
+      const design = document.getElementById('campaign-design').value;
+      const userId = document.getElementById('campaign-recipient').value;
+      const recipientUser = userId ? campaignUsersCache.find((u) => u.id === userId) : null;
+      const recipientLabel = recipientUser
+        ? recipientUser.name + ' (' + recipientUser.email + ')'
+        : (lastStatsData ? lastStatsData.totalUsers + ' destinataire(s)' : 'tous les utilisateurs');
+      if (!(await customConfirm('Envoyer cet email à ' + recipientLabel + ' ? Cette action ne peut pas être annulée.', 'Envoyer', false))) return;
+
+      const sendBtn = document.getElementById('campaign-send-btn');
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Envoi…';
+      try {
+        const res = await fetch('/admin/api/email-campaigns/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subject, body, design, userId: userId || undefined }),
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || 'Échec de l\\'envoi');
+        alert(
+          'Email envoyé à ' + result.recipientCount + ' destinataire(s)' +
+          (result.failureCount > 0 ? ', dont ' + result.failureCount + ' échec(s).' : '.'),
+        );
+        document.getElementById('campaign-form').reset();
+        refreshCustomSelect('campaign-recipient');
+        refreshCustomSelect('campaign-template');
+        refreshCustomSelect('campaign-design');
+        updateCampaignRecipientCount();
+        loadEmailCampaigns();
+      } catch (err) {
+        alert("Échec de l'envoi : " + (err instanceof Error ? err.message : String(err)));
+      } finally {
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Envoyer';
+      }
+    });
+
+    async function loadEmailCampaigns() {
+      const res = await fetch('/admin/api/email-campaigns');
+      const rows = await res.json();
+      const list = document.getElementById('campaigns-list');
+      document.getElementById('campaigns-loading').style.display = 'none';
+      document.getElementById('campaigns-empty').style.display = rows.length === 0 ? 'block' : 'none';
+      list.innerHTML = rows.map((c) => \`
+        <div class="simple-list-item">
+          <span class="simple-list-title">\${escapeHtml(c.subject)}</span>
+          <span class="simple-list-meta">\${EMAIL_DESIGN_LABELS[c.design] || c.design} · \${c.recipientCount} destinataire(s)\${c.failureCount > 0 ? ' · ' + c.failureCount + ' échec(s)' : ''} · \${fmtDate(c.createdAt)}</span>
+        </div>\`).join('');
+    }
+
+    // ---------- Communication sub-tabs ----------
+    document.querySelectorAll('.comm-subtab').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.comm-subtab').forEach((b) => {
+          b.classList.remove('btn-primary');
+          b.classList.add('btn-outline');
+        });
+        btn.classList.remove('btn-outline');
+        btn.classList.add('btn-primary');
+        document.querySelectorAll('.comm-subview').forEach((v) => v.classList.remove('active'));
+        document.getElementById('comm-' + btn.dataset.subtab).classList.add('active');
+      });
+    });
+
+    // ---------- Announcements ----------
+    const ANNOUNCEMENT_TYPE_LABELS = {
+      update: '🚀 Mise à jour', info: 'ℹ️ Information', tip: '💡 Astuce',
+      prompt: '⭐ Prompt recommandé', promo: '🎁 Promotion', poll: '📊 Sondage', security: '🔒 Sécurité',
+    };
+    const ANNOUNCEMENT_STATUS_LABELS = {
+      draft: 'Brouillon', scheduled: 'Programmée', published: 'Publiée', expired: 'Expirée', archived: 'Archivée',
+    };
+    const ANNOUNCEMENT_TARGET_LABELS = { all: 'Tous', new: 'Nouveaux', active: 'Actifs', inactive: 'Inactifs' };
+
+    let announcementsCache = [];
+    let announcementSearchTimer;
+
+    function toDatetimeLocalValue(iso) {
+      const d = iso ? new Date(iso) : new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
+
+    async function loadAnnouncements() {
+      const params = new URLSearchParams();
+      const type = document.getElementById('announcement-filter-type').value;
+      const status = document.getElementById('announcement-filter-status').value;
+      const target = document.getElementById('announcement-filter-target').value;
+      const search = document.getElementById('announcement-search').value;
+      if (type) params.set('type', type);
+      if (status) params.set('status', status);
+      if (target) params.set('target', target);
+      if (search) params.set('search', search);
+
+      const res = await fetch('/admin/api/announcements?' + params.toString());
+      announcementsCache = await res.json();
+      const body = document.getElementById('announcements-body');
+      document.getElementById('announcements-loading').style.display = 'none';
+      document.getElementById('announcements-empty').style.display = announcementsCache.length === 0 ? 'block' : 'none';
+      body.innerHTML = announcementsCache.map((a) => \`
+        <tr>
+          <td class="announcement-title-cell" title="\${escapeHtml(a.title)}">\${a.pinned ? '📌 ' : ''}\${escapeHtml(a.title)}</td>
+          <td><span class="type-badge">\${ANNOUNCEMENT_TYPE_LABELS[a.type] || a.type}</span></td>
+          <td class="muted">\${ANNOUNCEMENT_TARGET_LABELS[a.target] || a.target}</td>
+          <td><span class="badge badge-\${a.status}">\${ANNOUNCEMENT_STATUS_LABELS[a.status] || a.status}</span></td>
+          <td class="muted">\${fmtDate(a.publishAt)}</td>
+          <td class="muted">\${a.expiresAt ? fmtDate(a.expiresAt) : '—'}</td>
+          <td class="muted">\${a.sendEmail ? (a.emailSentAt ? 'Envoyé' : 'En attente') : '—'}</td>
+          <td><div class="actions-cell">
+            <button class="btn btn-outline btn-sm" data-action="edit-announcement" data-id="\${a.id}">Modifier</button>
+            <button class="btn btn-outline btn-sm" data-action="duplicate-announcement" data-id="\${a.id}">Dupliquer</button>
+            \${a.status !== 'archived' ? \`<button class="btn btn-outline btn-sm" data-action="archive-announcement" data-id="\${a.id}">Archiver</button>\` : ''}
+            <button class="btn btn-danger btn-sm" data-action="delete-announcement" data-id="\${a.id}">Supprimer</button>
+          </div></td>
+        </tr>\`).join('');
+
+      body.querySelectorAll('[data-action="edit-announcement"]').forEach((b) => b.addEventListener('click', () => editAnnouncement(announcementsCache.find((a) => a.id === b.dataset.id))));
+      body.querySelectorAll('[data-action="duplicate-announcement"]').forEach((b) => b.addEventListener('click', () => duplicateAnnouncementRow(b)));
+      body.querySelectorAll('[data-action="archive-announcement"]').forEach((b) => b.addEventListener('click', () => archiveAnnouncementRow(b)));
+      body.querySelectorAll('[data-action="delete-announcement"]').forEach((b) => b.addEventListener('click', () => deleteAnnouncementRow(b)));
+    }
+
+    ['announcement-filter-type', 'announcement-filter-status', 'announcement-filter-target'].forEach((id) => {
+      document.getElementById(id).addEventListener('change', () => loadAnnouncements());
+    });
+    document.getElementById('announcement-search').addEventListener('input', () => {
+      clearTimeout(announcementSearchTimer);
+      announcementSearchTimer = setTimeout(loadAnnouncements, 300);
+    });
+
+    document.getElementById('add-announcement-btn').addEventListener('click', () => {
+      document.getElementById('announcement-modal-title').textContent = 'Nouvelle annonce';
+      document.getElementById('announcement-form').reset();
+      document.getElementById('announcement-id').value = '';
+      document.getElementById('announcement-publish-at').value = toDatetimeLocalValue();
+      document.getElementById('announcement-expires-at').value = '';
+      refreshCustomSelect('announcement-type');
+      refreshCustomSelect('announcement-target');
+      openModal('announcement-modal');
+    });
+
+    function editAnnouncement(a) {
+      document.getElementById('announcement-modal-title').textContent = "Modifier l'annonce";
+      document.getElementById('announcement-id').value = a.id;
+      document.getElementById('announcement-title').value = a.title;
+      document.getElementById('announcement-content').value = a.content;
+      document.getElementById('announcement-image').value = a.imageUrl || '';
+      document.getElementById('announcement-type').value = a.type;
+      document.getElementById('announcement-target').value = a.target;
+      document.getElementById('announcement-publish-at').value = toDatetimeLocalValue(a.publishAt);
+      document.getElementById('announcement-expires-at').value = a.expiresAt ? toDatetimeLocalValue(a.expiresAt) : '';
+      document.getElementById('announcement-pinned').checked = a.pinned;
+      document.getElementById('announcement-send-email').checked = a.sendEmail;
+      refreshCustomSelect('announcement-type');
+      refreshCustomSelect('announcement-target');
+      openModal('announcement-modal');
+    }
+
+    function renderAnnouncementPreviewHtml(content) {
+      return escapeHtml(content)
+        .split(/\\n{2,}/)
+        .map((block) => '<p>' + block.replace(/\\n/g, '<br/>').replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>').replace(/\\*(.+?)\\*/g, '<em>$1</em>') + '</p>')
+        .join('');
+    }
+
+    document.getElementById('announcement-preview-btn').addEventListener('click', () => {
+      const title = document.getElementById('announcement-title').value || '(sans titre)';
+      const content = document.getElementById('announcement-content').value;
+      const image = document.getElementById('announcement-image').value;
+      document.getElementById('announcement-preview-body').innerHTML =
+        (image ? '<img src="' + escapeHtml(image) + '" alt="" />' : '') +
+        '<h3>' + escapeHtml(title) + '</h3>' +
+        renderAnnouncementPreviewHtml(content || '');
+      openModal('announcement-preview-modal');
+    });
+
+    document.getElementById('announcement-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('announcement-id').value;
+      const saveAsDraft = Boolean(e.submitter && e.submitter.id === 'announcement-draft-btn');
+      const publishAtValue = document.getElementById('announcement-publish-at').value;
+      const expiresAtValue = document.getElementById('announcement-expires-at').value;
+      const payload = {
+        title: document.getElementById('announcement-title').value,
+        content: document.getElementById('announcement-content').value,
+        imageUrl: document.getElementById('announcement-image').value,
+        type: document.getElementById('announcement-type').value,
+        target: document.getElementById('announcement-target').value,
+        pinned: document.getElementById('announcement-pinned').checked,
+        sendEmail: document.getElementById('announcement-send-email').checked,
+        publishAt: publishAtValue ? new Date(publishAtValue).toISOString() : new Date().toISOString(),
+        expiresAt: expiresAtValue ? new Date(expiresAtValue).toISOString() : null,
+        saveAsDraft,
+      };
+      await fetch(id ? '/admin/api/announcements/' + id : '/admin/api/announcements', {
+        method: id ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      closeModal('announcement-modal');
+      loadAnnouncements();
+    });
+
+    async function duplicateAnnouncementRow(btn) {
+      btn.disabled = true;
+      await fetch('/admin/api/announcements/' + btn.dataset.id + '/duplicate', { method: 'POST' });
+      loadAnnouncements();
+    }
+
+    async function archiveAnnouncementRow(btn) {
+      if (!(await customConfirm('Archiver cette annonce ?', 'Archiver', false))) return;
+      btn.disabled = true;
+      await fetch('/admin/api/announcements/' + btn.dataset.id + '/archive', { method: 'POST' });
+      loadAnnouncements();
+    }
+
+    async function deleteAnnouncementRow(btn) {
+      if (!(await customConfirm('Supprimer cette annonce ?'))) return;
+      btn.disabled = true;
+      await fetch('/admin/api/announcements/' + btn.dataset.id, { method: 'DELETE' });
+      loadAnnouncements();
+    }
+
     // ---------- Modals ----------
     function openModal(id) { document.getElementById(id).classList.add('open'); }
     function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
     let cancelPendingConfirm = null;
-    function customConfirm(message) {
+    // okLabel/danger default to the delete-confirmation look every existing
+    // call site relies on - pass e.g. customConfirm(msg, 'Envoyer', false)
+    // for a non-destructive action so the button doesn't say "Supprimer"
+    // for something that isn't a deletion.
+    function customConfirm(message, okLabel, danger) {
       if (cancelPendingConfirm) cancelPendingConfirm();
       return new Promise((resolve) => {
         document.getElementById('confirm-modal-message').textContent = message;
-        openModal('confirm-modal');
         const okBtn = document.getElementById('confirm-modal-ok');
+        okBtn.textContent = okLabel || 'Supprimer';
+        okBtn.classList.toggle('btn-danger', danger !== false);
+        okBtn.classList.toggle('btn-primary', danger === false);
+        openModal('confirm-modal');
         const cancelBtn = document.getElementById('confirm-modal-cancel');
         const cleanup = (result) => {
           closeModal('confirm-modal');
@@ -1191,6 +2018,10 @@ export const DASHBOARD_HTML = `<!doctype html>
     loadPrompts();
     loadReleases();
     loadFeedback();
+    loadEmailTemplates();
+    loadEmailCampaigns();
+    loadCampaignRecipientOptions();
+    loadAnnouncements();
   </script>
 </body>
 </html>`;
