@@ -1,11 +1,11 @@
 // Pull the latest release from the live server so the download button always
 // points at whatever APK was most recently published from the admin
 // dashboard, without needing to hand-edit this static page on GitHub Pages.
-// NOTE: this page is served over HTTPS (GitHub Pages) but the VPS below is
-// still plain HTTP - browsers block that as mixed content, so this fetch
-// will fail silently until the VPS has a domain + SSL. The static GitHub
-// Releases link on the download button is the fallback in the meantime.
-const API_BASE = 'http://147.79.100.48:3001';
+// sslip.io gives the VPS's bare IP a real HTTPS certificate, which this page
+// (served over HTTPS via GitHub Pages) needs - a plain http:// API_BASE gets
+// silently blocked as mixed content, always falling back to the static
+// GitHub Releases link below instead of ever reaching this fetch.
+const API_BASE = 'https://147-79-100-48.sslip.io';
 
 fetch(`${API_BASE}/api/app-version/latest`)
   .then((response) => (response.ok ? response.json() : null))
