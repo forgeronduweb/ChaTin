@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { boolean, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
@@ -20,6 +21,11 @@ export const sessions = pgTable('sessions', {
   osVersion: text('os_version'),
   appVersion: text('app_version'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // The DB-level default (used as the migration backfill for existing rows,
+  // and as a safety net for any insert that doesn't set it explicitly) mirrors
+  // SESSION_TTL_MS in users-store.ts, which is what actually sets this on
+  // every new session going forward.
+  expiresAt: timestamp('expires_at').notNull().default(sql`now() + interval '90 days'`),
 });
 
 export const conversations = pgTable('conversations', {

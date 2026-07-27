@@ -35,6 +35,12 @@ export type DeviceInfo = {
   appVersion?: string;
 };
 
+// A session token used to be valid forever - a leaked/stolen one (a
+// compromised device, a log line, a backup) stayed usable indefinitely with
+// no way for the legitimate user to invalidate it short of the account
+// being deleted. Bounding it limits how long a leak actually matters.
+const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+
 export async function createSession(userId: string, device?: DeviceInfo): Promise<string> {
   const [session] = await db
     .insert(sessions)
@@ -43,6 +49,7 @@ export async function createSession(userId: string, device?: DeviceInfo): Promis
       deviceModel: device?.deviceModel,
       osVersion: device?.osVersion,
       appVersion: device?.appVersion,
+      expiresAt: new Date(Date.now() + SESSION_TTL_MS),
     })
     .returning();
   return session.token;
@@ -50,11 +57,12 @@ export async function createSession(userId: string, device?: DeviceInfo): Promis
 
 export async function getUserByToken(token: string): Promise<User | undefined> {
   const [row] = await db
-    .select({ user: users })
+    .select({ user: users, expiresAt: sessions.expiresAt })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
     .where(eq(sessions.token, token));
   if (!row || row.user.status === 'suspended') return undefined;
+  if (row.expiresAt.getTime() < Date.now()) return undefined;
   return row.user;
 }
 
