@@ -1,7 +1,9 @@
 import 'dotenv/config';
 import express, { type NextFunction, type Request, type Response } from 'express';
+import { scheduleAnnouncementSync } from './announcements-scheduler.js';
 import { scheduleAutoPromptGeneration } from './auto-prompts.js';
 import { adminRouter } from './routes/admin.js';
+import { announcementsRouter } from './routes/announcements.js';
 import { authRouter } from './routes/auth.js';
 import { chatRouter } from './routes/chat.js';
 import { exportRouter } from './routes/export.js';
@@ -25,6 +27,14 @@ process.on('uncaughtException', (err) => {
 });
 
 const app = express();
+// Dokploy puts exactly one reverse proxy (Traefik) in front of this
+// container, which sets X-Forwarded-For to the real client IP. Without this,
+// Express ignores that header and express-rate-limit falls back to the
+// socket's remote address - which is the proxy itself for every single
+// request, so every user behind it shared one rate-limit bucket instead of
+// getting their own. Trusting exactly 1 hop fixes both that and the
+// ERR_ERL_UNEXPECTED_X_FORWARDED_FOR warnings this was logging.
+app.set('trust proxy', 1);
 // No cors() middleware on purpose: the mobile app's fetch calls aren't
 // browser requests, so CORS never applied to them either way, and the admin
 // dashboard is served same-origin by this same server. A blanket cors()
@@ -52,6 +62,7 @@ app.use('/api', feedbackRouter);
 app.use('/api', transcribeRouter);
 app.use('/api', memoriesRouter);
 app.use('/api', exportRouter);
+app.use('/api', announcementsRouter);
 app.use(adminRouter);
 
 // Catch-all error handler: anything asyncHandler passes to next(err) lands
@@ -69,3 +80,4 @@ app.listen(port, () => {
 });
 
 scheduleAutoPromptGeneration();
+scheduleAnnouncementSync();
