@@ -24,6 +24,7 @@ import {
 } from '../admin-store.js';
 import { DASHBOARD_HTML, renderLoginHtml } from '../admin-dashboard-html.js';
 import { publishGithubRelease } from '../github-releases.js';
+import { adminLoginLimiter } from '../rate-limit.js';
 import { uploadApk } from '../supabase-storage.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
@@ -36,7 +37,7 @@ adminRouter.get('/admin/login', (_req, res) => {
   res.type('html').send(renderLoginHtml(false));
 });
 
-adminRouter.post('/admin/login', express.urlencoded({ extended: false }), (req, res) => {
+adminRouter.post('/admin/login', adminLoginLimiter, express.urlencoded({ extended: false }), (req, res) => {
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
   if (!verifyAdminPassword(password)) {
     res.status(401).type('html').send(renderLoginHtml(true));

@@ -65,7 +65,15 @@ function isValidSessionToken(token: string): boolean {
 export function createAdminSession(res: Response): void {
   const payload = String(Date.now() + SESSION_MAX_AGE_MS);
   const token = `${payload}.${sign(payload)}`;
-  res.cookie(SESSION_COOKIE, token, { httpOnly: true, sameSite: 'lax', maxAge: SESSION_MAX_AGE_MS });
+  res.cookie(SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge: SESSION_MAX_AGE_MS,
+    // Only over HTTPS in production (Dockerfile sets NODE_ENV=production) -
+    // unconditional `secure: true` would silently stop the browser from
+    // ever storing the cookie during local dev, which runs over plain HTTP.
+    secure: process.env.NODE_ENV === 'production',
+  });
 }
 
 export function destroyAdminSession(_req: Request, res: Response): void {

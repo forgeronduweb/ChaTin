@@ -1,15 +1,47 @@
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import multer from 'multer';
 import { generateReply } from '../ai.js';
 import { asyncHandler } from '../async-handler.js';
 import { extractFileText, SUPPORTED_ATTACHMENT_TYPES } from '../file-extraction.js';
 import { extractAndSaveMemories } from '../memory-store.js';
+import { aiUsageLimiter } from '../rate-limit.js';
 import { resolveUserId } from '../request-auth.js';
-import { addMessage, createConversation, getConversation, listConversations, setMessageReaction } from '../store.js';
+import {
+  addMessage,
+  createConversation,
+  getConversation,
+  getConversationOwnerId,
+  getMessageOwner,
+  listConversations,
+  setMessageReaction,
+} from '../store.js';
 
 export const chatRouter = Router();
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+// A guest (unowned, userId === null) conversation stays reachable by id
+// alone - that already matches how the client treats guest history (kept
+// only in local storage, with the server id as the sole "key"). Once a
+// conversation belongs to a registered user, only that same user's token
+// may read or write it. Without this, any conversation id (registered or
+// not) was readable/writable by anyone who had it - see the security audit.
+async function authorizeConversationAccess(
+  res: Response,
+  conversationId: string,
+  requesterId: string | undefined,
+): Promise<boolean> {
+  const ownerId = await getConversationOwnerId(conversationId);
+  if (ownerId === undefined) {
+    res.status(404).json({ error: 'Conversation not found' });
+    return false;
+  }
+  if (ownerId !== null && ownerId !== requesterId) {
+    res.status(403).json({ error: 'Forbidden' });
+    return false;
+  }
+  return true;
+}
 
 chatRouter.get(
   '/conversations',
@@ -33,6 +65,9 @@ chatRouter.post(
 chatRouter.get(
   '/conversations/:id',
   asyncHandler(async (req, res) => {
+    const userId = await resolveUserId(req);
+    if (!(await authorizeConversationAccess(res, req.params.id, userId))) return;
+
     const conversation = await getConversation(req.params.id);
     if (!conversation) {
       res.status(404).json({ error: 'Conversation not found' });
@@ -44,8 +79,12 @@ chatRouter.get(
 
 chatRouter.post(
   '/conversations/:id/messages',
+  aiUsageLimiter,
   upload.single('file'),
   asyncHandler(async (req, res) => {
+    const userId = await resolveUserId(req);
+    if (!(await authorizeConversationAccess(res, req.params.id, userId))) return;
+
     const conversation = await getConversation(req.params.id);
     if (!conversation) {
       res.status(404).json({ error: 'Conversation not found' });
@@ -73,8 +112,6 @@ chatRouter.post(
         return;
       }
     }
-
-    const userId = await resolveUserId(req);
 
     const userMessage = await addMessage(conversation.id, {
       from: 'me',
@@ -118,6 +155,18 @@ chatRouter.patch(
       res.status(400).json({ error: 'reaction must be "like", "dislike", or null' });
       return;
     }
+
+    const owner = await getMessageOwner(req.params.messageId);
+    if (!owner) {
+      res.status(404).json({ error: 'Message not found' });
+      return;
+    }
+    const userId = await resolveUserId(req);
+    if (owner.ownerId !== null && owner.ownerId !== userId) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
     const message = await setMessageReaction(req.params.messageId, reaction);
     if (!message) {
       res.status(404).json({ error: 'Message not found' });

@@ -51,6 +51,27 @@ export async function createConversation(
   };
 }
 
+// Cheap ownership check used before letting a request read/write a
+// conversation or one of its messages - returns undefined if the
+// conversation doesn't exist, null if it's an unowned guest conversation
+// (accessible to whoever holds the id, same trust model the client already
+// uses for local-only guest history), or the owning user's id otherwise.
+export async function getConversationOwnerId(id: string): Promise<string | null | undefined> {
+  const [row] = await db.select({ userId: conversations.userId }).from(conversations).where(eq(conversations.id, id));
+  return row ? row.userId : undefined;
+}
+
+export async function getMessageOwner(
+  messageId: string,
+): Promise<{ conversationId: string; ownerId: string | null } | undefined> {
+  const [row] = await db
+    .select({ conversationId: messages.conversationId, ownerId: conversations.userId })
+    .from(messages)
+    .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+    .where(eq(messages.id, messageId));
+  return row;
+}
+
 export async function getConversation(id: string): Promise<Conversation | undefined> {
   const [conversation] = await db.select().from(conversations).where(eq(conversations.id, id));
   if (!conversation) return undefined;
@@ -85,9 +106,12 @@ export async function setMessageReaction(
 }
 
 export async function listConversations(userId?: string): Promise<Pick<Conversation, 'id' | 'title'>[]> {
+  // No userId (no/invalid auth) must never fall through to an unfiltered
+  // .where(undefined) - that returns every conversation from every user.
+  if (!userId) return [];
   return db
     .select({ id: conversations.id, title: conversations.title })
     .from(conversations)
-    .where(userId ? eq(conversations.userId, userId) : undefined)
+    .where(eq(conversations.userId, userId))
     .orderBy(desc(conversations.createdAt));
 }

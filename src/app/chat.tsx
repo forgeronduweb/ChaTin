@@ -641,13 +641,18 @@ export default function ChatScreen() {
     // navigated away mid-reply and came back) already has this - reusing it
     // avoids spawning a duplicate server-side conversation on remount.
     if (session.serverConversationId) return;
-    createConversation(stored?.title ?? title, stored?.messages).then((conversation) => {
-      if (cancelled) return;
-      updateChatSession(localId.current, { serverConversationId: conversation.id });
-      if (!stored && title) {
-        void submit(title);
-      }
-    });
+    createConversation(stored?.title ?? title, stored?.messages)
+      .then((conversation) => {
+        if (cancelled) return;
+        updateChatSession(localId.current, { serverConversationId: conversation.id });
+        if (!stored && title) {
+          void submit(title);
+        }
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error('Failed to create conversation:', error);
+      });
     return () => {
       cancelled = true;
     };

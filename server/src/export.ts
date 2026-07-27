@@ -7,9 +7,19 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FONT_REGULAR = path.join(__dirname, '../assets/fonts/Baloo2-Regular.ttf');
 const FONT_BOLD = path.join(__dirname, '../assets/fonts/Baloo2-Bold.ttf');
 
+// Prefixes cells starting with =, +, -, @ (or a tab/CR, which some Excel
+// versions also treat as a formula lead-in) with a straight quote, the
+// standard way to defuse CSV/Excel formula injection - otherwise a
+// generated report containing e.g. a message that starts with "=cmd|..."
+// could execute a formula/macro the moment someone opens it in Excel.
+function neutralizeFormula(cell: string): string {
+  return /^[=+\-@\t\r]/.test(cell) ? `'${cell}` : cell;
+}
+
 export function generateExcelBuffer(headers: string[], rows: string[][]): Buffer {
   const workbook = XLSX.utils.book_new();
-  const sheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  const safeRows = [headers, ...rows].map((row) => row.map(neutralizeFormula));
+  const sheet = XLSX.utils.aoa_to_sheet(safeRows);
   XLSX.utils.book_append_sheet(workbook, sheet, 'Feuille1');
   return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 }

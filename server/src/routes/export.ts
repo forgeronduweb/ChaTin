@@ -1,8 +1,13 @@
 import { Router } from 'express';
 import { asyncHandler } from '../async-handler.js';
 import { generateExcelBuffer, generatePdfBuffer } from '../export.js';
+import { aiUsageLimiter } from '../rate-limit.js';
 
 export const exportRouter = Router();
+// No auth is required here on purpose (guests export too), so this is the
+// only thing standing between the endpoint and someone scripting repeated
+// PDF/Excel generation for free.
+exportRouter.use(aiUsageLimiter);
 
 function safeFilename(title: string | undefined, fallback: string, ext: string): string {
   const base =

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { asyncHandler } from '../async-handler.js';
 import { transcribeAudio } from '../groq.js';
+import { aiUsageLimiter } from '../rate-limit.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
@@ -9,6 +10,7 @@ export const transcribeRouter = Router();
 
 transcribeRouter.post(
   '/transcribe',
+  aiUsageLimiter,
   upload.single('audio'),
   asyncHandler(async (req, res) => {
     const file = req.file;

@@ -702,10 +702,16 @@ export const DASHBOARD_HTML = `<!doctype html>
       await fetch('/admin/api/notifications/' + key + '/read', { method: 'POST' });
     }
 
+    // textContent->innerHTML escapes &, < and > but NOT quote characters -
+    // several call sites interpolate this straight into a double-quoted
+    // HTML attribute (title="..."), so a raw " in the source string (e.g. a
+    // conversation title, which any unauthenticated client can set via
+    // POST /api/conversations) broke out of the attribute and injected
+    // arbitrary markup/event handlers into this already-authenticated admin
+    // page. Escaping all five XSS-relevant characters directly closes that.
+    const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
     function escapeHtml(str) {
-      const div = document.createElement('div');
-      div.textContent = str ?? '';
-      return div.innerHTML;
+      return String(str ?? '').replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
     }
     function initials(name) {
       return (name || '?').split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
@@ -867,7 +873,7 @@ export const DASHBOARD_HTML = `<!doctype html>
       document.getElementById('users-empty').style.display = users.length === 0 ? 'block' : 'none';
       body.innerHTML = users.map((u) => {
         const avatar = u.avatarUrl
-          ? \`<span class="avatar"><img src="\${u.avatarUrl}" alt="" /></span>\`
+          ? \`<span class="avatar"><img src="\${escapeHtml(u.avatarUrl)}" alt="" /></span>\`
           : \`<span class="avatar">\${initials(u.name)}</span>\`;
         const statusBadge = u.status === 'suspended'
           ? '<span class="badge badge-suspended">Suspendu</span>'
@@ -967,7 +973,7 @@ export const DASHBOARD_HTML = `<!doctype html>
       document.getElementById('prompts-loading').style.display = 'none';
       document.getElementById('prompts-empty').style.display = prompts.length === 0 ? 'block' : 'none';
       grid.innerHTML = prompts.map((p) => \`
-        <div class="prompt-card" style="background:\${p.color}">
+        <div class="prompt-card" style="background:\${escapeHtml(p.color)}">
           \${p.featured ? '<span class="prompt-featured">Vedette</span>' : ''}
           <div class="prompt-card-body">
             \${p.category ? \`<span class="prompt-category-pill">\${escapeHtml(p.category)}</span>\` : ''}
@@ -1054,7 +1060,7 @@ export const DASHBOARD_HTML = `<!doctype html>
       document.getElementById('releases-empty').style.display = releases.length === 0 ? 'block' : 'none';
       body.innerHTML = releases.map((r) => \`
         <tr>
-          <td><a href="\${r.apkUrl}" target="_blank" rel="noopener">\${escapeHtml(r.version)}</a></td>
+          <td><a href="\${escapeHtml(r.apkUrl)}" target="_blank" rel="noopener">\${escapeHtml(r.version)}</a></td>
           <td class="muted">\${r.versionCode}</td>
           <td class="muted">\${fmtDate(r.createdAt)}</td>
           <td>\${r.mandatory ? '<span class="badge badge-suspended">Obligatoire</span>' : '<span class="badge badge-active">Optionnelle</span>'}</td>
