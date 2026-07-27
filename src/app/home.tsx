@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Extrapolation,
   FadeInUp,
@@ -16,15 +16,24 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { AnimatedPressable } from '@/components/animated-pressable';
 import { GraphPaperBackground } from '@/components/graph-paper-background';
+import { MessageContent } from '@/components/message-content';
 import { UpdatePrompt } from '@/components/update-prompt';
 import { Brand, Fonts, Spacing, type ThemeColors } from '@/constants/theme';
 import { useThemeColors } from '@/contexts/theme-context';
+import { type Announcement, getAnnouncements } from '@/lib/api';
+import { announcementTypeEmoji } from '@/lib/announcement-types';
+import { hasSeenAnnouncement, markAnnouncementSeen } from '@/lib/announcements-seen-store';
 import { type AuthUser, getSession } from '@/lib/auth';
 import { listStoredConversations, type StoredConversation } from '@/lib/conversations-store';
 import { t } from '@/lib/i18n';
 import { syncCityFromLocation } from '@/lib/location';
 import { usePrompts } from '@/lib/prompts';
 import { usePendingUpdate } from '@/lib/update-check';
+
+// Only ever check once per cold start - useFocusEffect below re-runs every
+// time Home regains focus (e.g. coming back from Chat), which would
+// otherwise re-show the same "what's new" modal on every single visit.
+let hasCheckedLaunchAnnouncement = false;
 
 function initialsFor(name: string) {
   return name
@@ -78,6 +87,8 @@ export default function HomeScreen() {
   const featuredPrompts = prompts.filter((prompt) => prompt.featured);
   const pendingUpdate = usePendingUpdate();
   const [updateDismissed, setUpdateDismissed] = useState(false);
+  const [pinnedAnnouncement, setPinnedAnnouncement] = useState<Announcement | null>(null);
+  const [launchAnnouncement, setLaunchAnnouncement] = useState<Announcement | null>(null);
   // Seeded with a realistic estimate so the prompt sheet already sits in
   // roughly the right place before the header's first onLayout measurement.
   const [headerHeight, setHeaderHeight] = useState(420);
@@ -140,8 +151,24 @@ export default function HomeScreen() {
       // the prompt sheet back in its resting position, not wherever it was
       // left expanded to before navigating away.
       expanded.value = 0;
+
+      getAnnouncements()
+        .then((items) => {
+          setPinnedAnnouncement(items.find((item) => item.pinned) ?? null);
+          if (!hasCheckedLaunchAnnouncement) {
+            hasCheckedLaunchAnnouncement = true;
+            const unseen = items.find((item) => !hasSeenAnnouncement(item.id));
+            if (unseen) setLaunchAnnouncement(unseen);
+          }
+        })
+        .catch(() => {});
     }, []),
   );
+
+  function dismissLaunchAnnouncement() {
+    if (launchAnnouncement) markAnnouncementSeen(launchAnnouncement.id);
+    setLaunchAnnouncement(null);
+  }
 
   return (
     <View style={styles.container}>
@@ -173,6 +200,22 @@ export default function HomeScreen() {
               />
             </View>
           </AnimatedPressable>
+
+          {pinnedAnnouncement && (
+            <Pressable
+              onPress={() => router.push('/announcements')}
+              style={({ pressed }) => [styles.pinnedBanner, pressed && styles.pressed]}>
+              <Text style={styles.pinnedBannerEmoji}>{announcementTypeEmoji(pinnedAnnouncement.type)}</Text>
+              <Text style={styles.pinnedBannerText} numberOfLines={1}>
+                {pinnedAnnouncement.title}
+              </Text>
+              <SymbolView
+                tintColor={Brand.textMuted}
+                name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
+                size={14}
+              />
+            </Pressable>
+          )}
 
           {historyPreview.length > 0 && (
             <View>
@@ -244,6 +287,23 @@ export default function HomeScreen() {
       {pendingUpdate && !updateDismissed && (
         <UpdatePrompt update={pendingUpdate} onDismiss={() => setUpdateDismissed(true)} />
       )}
+
+      <Modal visible={launchAnnouncement !== null} transparent animationType="slide" onRequestClose={dismissLaunchAnnouncement}>
+        <View style={styles.launchOverlay}>
+          <View style={[styles.launchSheet, { paddingBottom: Spacing.five + insets.bottom }]}>
+            {launchAnnouncement && (
+              <>
+                <Text style={styles.launchEmoji}>{announcementTypeEmoji(launchAnnouncement.type)}</Text>
+                <Text style={styles.launchTitle}>{launchAnnouncement.title}</Text>
+                <MessageContent text={launchAnnouncement.content} />
+              </>
+            )}
+            <Pressable onPress={dismissLaunchAnnouncement} style={({ pressed }) => [styles.launchButton, pressed && styles.pressed]}>
+              <Text style={styles.launchButtonText}>{t('settingsOk')}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -358,6 +418,58 @@ function createStyles(colors: ThemeColors) {
       color: Brand.white,
       fontSize: 13,
       fontFamily: Fonts.semiBold,
+    },
+    pinnedBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.two,
+      backgroundColor: colors.surface,
+      borderRadius: 999,
+      paddingHorizontal: Spacing.three,
+      paddingVertical: Spacing.two + 2,
+    },
+    pinnedBannerEmoji: {
+      fontSize: 15,
+    },
+    pinnedBannerText: {
+      flex: 1,
+      color: colors.text,
+      fontSize: 13,
+      fontFamily: Fonts.semiBold,
+    },
+    launchOverlay: {
+      flex: 1,
+      backgroundColor: colors.overlay,
+      justifyContent: 'flex-end',
+    },
+    launchSheet: {
+      backgroundColor: colors.background,
+      borderTopLeftRadius: Spacing.five,
+      borderTopRightRadius: Spacing.five,
+      paddingTop: Spacing.five,
+      paddingHorizontal: Spacing.five,
+      gap: Spacing.two,
+    },
+    launchEmoji: {
+      fontSize: 28,
+    },
+    launchTitle: {
+      color: colors.text,
+      fontSize: 20,
+      fontFamily: Fonts.bold,
+      marginBottom: Spacing.one,
+    },
+    launchButton: {
+      backgroundColor: Brand.yellow,
+      borderRadius: 999,
+      paddingVertical: Spacing.three,
+      alignItems: 'center',
+      marginTop: Spacing.two,
+    },
+    launchButtonText: {
+      color: Brand.ink,
+      fontSize: 16,
+      fontFamily: Fonts.bold,
     },
     // Absolutely positioned over `gridSection` (not a normal flex sibling) -
     // its animated `top` (see promptSheetStyle) rises as its inner ScrollView

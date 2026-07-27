@@ -200,6 +200,18 @@ ChaTin also relies on third-party open source libraries (React Native, Expo, and
   weatherConditionThunderstorm: 'Thunderstorm',
   weatherWind: 'Wind',
   weatherHumidity: 'Humidity',
+
+  settingsAnnouncements: 'Announcements',
+  announcementsTitle: 'Announcements',
+  announcementsEmpty: 'No announcements yet.',
+  homeAnnouncementBadgeNew: 'New',
+  announcementTypeUpdate: 'Update',
+  announcementTypeInfo: 'Info',
+  announcementTypeTip: 'Tip',
+  announcementTypePrompt: 'Recommended prompt',
+  announcementTypePromo: 'Promotion',
+  announcementTypePoll: 'Poll',
+  announcementTypeSecurity: 'Security',
 };
 
 const fr: Record<keyof typeof en, string> = {
@@ -406,6 +418,18 @@ ChaTin s'appuie aussi sur des bibliothèques open source tierces (React Native, 
   weatherConditionThunderstorm: 'Orage',
   weatherWind: 'Vent',
   weatherHumidity: 'Humidité',
+
+  settingsAnnouncements: 'Annonces',
+  announcementsTitle: 'Annonces',
+  announcementsEmpty: 'Aucune annonce pour le moment.',
+  homeAnnouncementBadgeNew: 'Nouveau',
+  announcementTypeUpdate: 'Mise à jour',
+  announcementTypeInfo: 'Info',
+  announcementTypeTip: 'Astuce',
+  announcementTypePrompt: 'Prompt recommandé',
+  announcementTypePromo: 'Promotion',
+  announcementTypePoll: 'Sondage',
+  announcementTypeSecurity: 'Sécurité',
 };
 
 const translations = { fr, en };

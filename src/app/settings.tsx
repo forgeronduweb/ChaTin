@@ -261,6 +261,15 @@ export default function SettingsScreen() {
         <View style={styles.generalSection}>
           <Text style={styles.sectionTitle}>{t('settingsOther')}</Text>
 
+          <Pressable onPress={() => router.push('/announcements')} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+            <Text style={styles.rowLabel}>{t('settingsAnnouncements')}</Text>
+            <SymbolView
+              tintColor={Brand.textMuted}
+              name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
+              size={16}
+            />
+          </Pressable>
+
           {user && (
             <Pressable onPress={() => router.push('/memory')} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
               <Text style={styles.rowLabel}>{t('settingsMemory')}</Text>

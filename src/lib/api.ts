@@ -67,6 +67,20 @@ export function getPrompts(): Promise<Prompt[]> {
   return request<Prompt[]>('/api/prompts');
 }
 
+export type Announcement = {
+  id: string;
+  title: string;
+  content: string;
+  imageUrl: string | null;
+  type: 'update' | 'info' | 'tip' | 'prompt' | 'promo' | 'poll' | 'security';
+  pinned: boolean;
+  publishAt: string;
+};
+
+export function getAnnouncements(): Promise<Announcement[]> {
+  return request<Announcement[]>('/api/announcements');
+}
+
 export type AppRelease = {
   version: string;
   versionCode: number;
