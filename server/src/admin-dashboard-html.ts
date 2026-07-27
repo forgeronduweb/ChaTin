@@ -198,6 +198,13 @@ export const DASHBOARD_HTML = `<!doctype html>
     z-index: 1;
   }
   thead th.sticky-actions { background: var(--cream); z-index: 3; }
+  /* position:sticky gives every row's actions cell its own stacking
+     context, so a z-index set only on .row-menu is scoped to its own cell -
+     it still loses to the NEXT row's sticky-actions cell, which comes later
+     in paint order at the same base z-index, and the open dropdown reads as
+     "mixed into" the row below. Raising the whole cell's z-index while its
+     menu is open makes that cell win against every other row instead. */
+  .sticky-actions:has(.row-menu.open) { z-index: 30; }
 
   .badge { display: inline-block; padding: 3px 11px; border-radius: 999px; font-size: 11px; font-weight: 700; }
   .badge-active { background: rgba(63,190,122,0.15); color: #1F8A50; }
