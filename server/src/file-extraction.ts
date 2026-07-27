@@ -1,6 +1,12 @@
 import mammoth from 'mammoth';
 import { PDFParse } from 'pdf-parse';
-import * as XLSX from 'xlsx';
+// @e965/xlsx, not the 'xlsx' package on npm: SheetJS stopped publishing
+// fixed releases to the npm registry after 0.18.5 (still vulnerable to
+// prototype pollution / ReDoS during parsing - GHSA-4r6h-8v6p-xvw6,
+// GHSA-5pgg-2g8v-p4x9), and this is exactly the codepath that parses a
+// user-uploaded, untrusted .xlsx/.xls attachment. @e965/xlsx republishes
+// SheetJS's own later, patched source to npm under a scoped name.
+import * as XLSX from '@e965/xlsx';
 
 const MAX_CHARS = 12_000;
 

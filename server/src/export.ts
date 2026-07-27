@@ -1,7 +1,8 @@
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import PDFDocument from 'pdfkit';
-import * as XLSX from 'xlsx';
+// See file-extraction.ts for why this is @e965/xlsx and not 'xlsx'.
+import * as XLSX from '@e965/xlsx';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FONT_REGULAR = path.join(__dirname, '../assets/fonts/Baloo2-Regular.ttf');

@@ -18,7 +18,8 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.anonymous.monappandroid",
-      "versionCode": 13
+      "versionCode": 13,
+      "allowBackup": false
     },
     "web": {
       "output": "static",

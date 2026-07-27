@@ -1,5 +1,4 @@
 import 'dotenv/config';
-import cors from 'cors';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { scheduleAutoPromptGeneration } from './auto-prompts.js';
 import { adminRouter } from './routes/admin.js';
@@ -26,7 +25,15 @@ process.on('uncaughtException', (err) => {
 });
 
 const app = express();
-app.use(cors());
+// No cors() middleware on purpose: the mobile app's fetch calls aren't
+// browser requests, so CORS never applied to them either way, and the admin
+// dashboard is served same-origin by this same server. A blanket cors()
+// with no origin restriction just meant any website could make the
+// browser attach a visitor's cookies/credentials to a request here - with
+// nothing left that actually needs cross-origin browser access, not
+// sending permissive CORS headers is strictly safer with no functional
+// loss. Add a scoped origin allowlist here if a browser client is ever
+// (re)introduced.
 app.use(express.json());
 
 app.get('/', (_req, res) => {
