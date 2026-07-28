@@ -27,12 +27,21 @@ export type WeatherSpec = {
   humidityPct?: number;
 };
 
+export type CurrencySpec = {
+  amount: number;
+  from: string;
+  to: string;
+  rate: number;
+  result: number;
+};
+
 export type MessageSegment =
   | { type: 'paragraph'; inlines: InlineSpan[] }
   | { type: 'code'; language: string; code: string }
   | { type: 'table'; headers: string[]; alignments: ('left' | 'center' | 'right')[]; rows: string[][] }
   | { type: 'chart'; chart: ChartSpec }
-  | { type: 'weather'; weather: WeatherSpec };
+  | { type: 'weather'; weather: WeatherSpec }
+  | { type: 'currency'; currency: CurrencySpec };
 
 const FENCE_REGEX = /```(\w+)?\n([\s\S]*?)```/g;
 const SEPARATOR_LINE = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
@@ -58,6 +67,9 @@ export function parseMessageContent(raw: string): MessageSegment[] {
     } else if (lang === 'weather') {
       const weather = tryParseWeather(body);
       segments.push(weather ? { type: 'weather', weather } : { type: 'code', language: 'json', code: body });
+    } else if (lang === 'currency') {
+      const currency = tryParseCurrency(body);
+      segments.push(currency ? { type: 'currency', currency } : { type: 'code', language: 'json', code: body });
     } else {
       segments.push({ type: 'code', language: lang || 'text', code: body });
     }
@@ -123,6 +135,33 @@ function tryParseWeather(body: string): WeatherSpec | null {
       temperatureC: data.temperatureC,
       windKph: typeof data.windKph === 'number' ? data.windKph : undefined,
       humidityPct: typeof data.humidityPct === 'number' ? data.humidityPct : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function tryParseCurrency(body: string): CurrencySpec | null {
+  try {
+    const data = JSON.parse(body) as {
+      amount?: unknown;
+      from?: unknown;
+      to?: unknown;
+      rate?: unknown;
+      result?: unknown;
+    };
+    if (typeof data.amount !== 'number') return null;
+    if (typeof data.from !== 'string' || !data.from) return null;
+    if (typeof data.to !== 'string' || !data.to) return null;
+    if (typeof data.rate !== 'number') return null;
+    if (typeof data.result !== 'number') return null;
+
+    return {
+      amount: data.amount,
+      from: data.from.toUpperCase(),
+      to: data.to.toUpperCase(),
+      rate: data.rate,
+      result: data.result,
     };
   } catch {
     return null;

@@ -12,10 +12,15 @@ Pick the type by intent: "bar" for comparisons or statistics between categories,
 
 When you answer a current-weather question for a specific place using real weather data given to you in this prompt, emit ONE fenced \`\`\`weather block containing ONLY valid JSON, no other text inside it, in addition to your normal prose reply:
 {"city":string,"condition":"clear"|"partly-cloudy"|"cloudy"|"fog"|"drizzle"|"rain"|"snow"|"thunderstorm","temperatureC":number,"windKph":number,"humidityPct":number}
-Copy the "condition" value exactly as given to you (it's already one of the allowed values) - never translate it or invent your own wording. Only emit this block when you actually have real current weather data for that place; never fabricate one for a forecast, a different day, or a place you have no data for.`;
+Copy the "condition" value exactly as given to you (it's already one of the allowed values) - never translate it or invent your own wording. Only emit this block when you actually have real current weather data for that place; never fabricate one for a forecast, a different day, or a place you have no data for.
+
+When you answer a currency conversion question using real exchange rate data given to you in this prompt, emit ONE fenced \`\`\`currency block containing ONLY valid JSON, no other text inside it, in addition to your normal prose reply:
+{"amount":number,"from":string,"to":string,"rate":number,"result":number}
+Copy amount/from/to/rate/result exactly as given to you - never compute or invent your own numbers. Only emit this block when you actually have real conversion data for that currency pair; never fabricate one for a currency you have no data for.`;
 
 export type WeatherEntry = { label: string; data: string };
 export type NewsEntry = { title: string; description: string | null; source: string | null; pubDate: string | null };
+export type CurrencyEntry = { amount: number; from: string; to: string; rate: number; result: number };
 
 export function buildSystemPrompt(
   memories: string[],
@@ -23,6 +28,7 @@ export function buildSystemPrompt(
   weatherEntries?: WeatherEntry[],
   newsEntries?: NewsEntry[],
   matchResult?: string | null,
+  currencyEntry?: CurrencyEntry | null,
 ): string {
   let prompt = SYSTEM_PROMPT;
 
@@ -44,6 +50,10 @@ export function buildSystemPrompt(
 
   if (matchResult) {
     prompt += `\n\nReal sports match/game result fetched for this question (live data, not something you need to search for or guess): ${matchResult}\nUse this directly to answer. If it doesn't actually match what was asked (wrong teams, no result yet), say so rather than guessing.`;
+  }
+
+  if (currencyEntry) {
+    prompt += `\n\nReal currency exchange rate fetched for this question (live data, not something you need to search for or guess): ${currencyEntry.amount} ${currencyEntry.from} = ${currencyEntry.result} ${currencyEntry.to} (rate: 1 ${currencyEntry.from} = ${currencyEntry.rate} ${currencyEntry.to})\nUse this directly to answer.`;
   }
 
   if (memories.length > 0) {

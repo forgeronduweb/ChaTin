@@ -176,6 +176,46 @@ export async function extractSportsTeams(userText: string): Promise<SportsTeams>
   }
 }
 
+const CURRENCY_PROMPT = `You detect whether a message is asking to convert or compare an amount of money between two currencies.
+
+Reply with ONLY JSON, no other text: {"isCurrencyQuestion": boolean, "amount": number, "from": string, "to": string}
+- If the message asks to convert/compare an amount between two currencies (e.g. "100 dollars en euros", "convert 50 EUR to GBP", "combien fait 20000 FCFA en dollars ?", "1 euro c'est combien en cedis ?"), reply {"isCurrencyQuestion": true, "amount": <number>, "from": "<3-letter ISO 4217 code>", "to": "<3-letter ISO 4217 code>"}.
+- Always resolve currency names/symbols/slang to their standard 3-letter ISO 4217 code: "dollars"/"$" -> "USD" (unless another country is named, e.g. "dollars canadiens" -> "CAD"), "euros"/"€" -> "EUR", "livres"/"£" -> "GBP", "yens" -> "JPY", "FCFA"/"francs CFA" (West Africa: Côte d'Ivoire, Sénégal, etc.) -> "XOF", "francs CFA" (Central Africa: Cameroun, Gabon, etc.) -> "XAF", "cedis" -> "GHS", "nairas" -> "NGN", "dirhams" -> "MAD".
+- If no amount is given, default amount to 1.
+- If the message isn't about currency conversion at all, reply {"isCurrencyQuestion": false, "amount": 0, "from": "", "to": ""}.`;
+
+export type CurrencyQuestion = { amount: number; from: string; to: string } | null;
+
+export async function extractCurrencyConversion(userText: string): Promise<CurrencyQuestion> {
+  const response = await getClient().chat.completions.create({
+    model: 'llama-3.3-70b-versatile',
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: CURRENCY_PROMPT },
+      { role: 'user', content: userText },
+    ],
+  });
+
+  try {
+    const parsed = JSON.parse(response.choices[0]?.message.content ?? '{}');
+    if (
+      parsed.isCurrencyQuestion !== true ||
+      typeof parsed.from !== 'string' ||
+      !parsed.from.trim() ||
+      typeof parsed.to !== 'string' ||
+      !parsed.to.trim()
+    ) {
+      return null;
+    }
+    return {
+      amount: typeof parsed.amount === 'number' && parsed.amount > 0 ? parsed.amount : 1,
+      from: parsed.from.trim().toUpperCase(),
+      to: parsed.to.trim().toUpperCase(),
+    };
+  } catch {
+    return null;
+  }
+}
 
 const PROMPT_SUGGESTIONS_PROMPT = `You produce short "starter prompt" suggestions for a general-purpose AI chat app (ChaTin), shown to users as tappable cards on the home screen.
 

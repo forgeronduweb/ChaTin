@@ -201,6 +201,9 @@ ChaTin also relies on third-party open source libraries (React Native, Expo, and
   weatherWind: 'Wind',
   weatherHumidity: 'Humidity',
 
+  currencyLabel: 'Exchange rate',
+  currencyRate: '1 {from} = {rate} {to}',
+
   settingsAnnouncements: 'Announcements',
   announcementsTitle: 'Announcements',
   announcementsEmpty: 'No announcements yet.',
@@ -418,6 +421,9 @@ ChaTin s'appuie aussi sur des bibliothèques open source tierces (React Native, 
   weatherConditionThunderstorm: 'Orage',
   weatherWind: 'Vent',
   weatherHumidity: 'Humidité',
+
+  currencyLabel: 'Taux de change',
+  currencyRate: '1 {from} = {rate} {to}',
 
   settingsAnnouncements: 'Annonces',
   announcementsTitle: 'Annonces',

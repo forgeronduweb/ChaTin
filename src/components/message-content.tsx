@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { ChatChart } from '@/components/chat-chart';
 import { CodeBlock } from '@/components/code-block';
+import { CurrencyCard } from '@/components/currency-card';
 import { DataTable } from '@/components/data-table';
 import { WeatherCard } from '@/components/weather-card';
 import { Fonts, type ThemeColors } from '@/constants/theme';
@@ -34,6 +35,8 @@ export const MessageContent = memo(function MessageContent({ text }: { text: str
             return <ChatChart key={index} chart={segment.chart} />;
           case 'weather':
             return <WeatherCard key={index} weather={segment.weather} />;
+          case 'currency':
+            return <CurrencyCard key={index} currency={segment.currency} />;
           default:
             return null;
         }
