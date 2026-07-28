@@ -10,15 +10,18 @@ if (!connectionString) {
 const client = postgres(connectionString, {
   prepare: false,
   ssl: 'require',
-  // Supabase's transaction pooler (port 6543) caps concurrent connections
-  // fairly low - without these, a query that can't get a slot right away
-  // just waits forever instead of failing, which is what made some admin
-  // dashboard requests (users/notifications/releases) hang as "pending"
-  // when several fired at once on page load. 8 (not the default 10) because
-  // getStats()/getAnalyticsReport() alone already fan out to 6 queries via
-  // Promise.all - lower than that and a single dashboard request queues
-  // against itself before any other endpoint even gets a look in.
-  max: 8,
+  // Supabase's transaction pooler (port 6543) caps concurrent connections -
+  // without these, a query that can't get a slot right away just waits
+  // forever instead of failing, which is what made some admin dashboard
+  // requests (users/notifications/releases) hang as "pending" when several
+  // fired at once on page load. The dashboard now loads each section lazily
+  // (on tab visit, not all at once - see admin-dashboard-html.ts), which cut
+  // peak demand from this app to well under 12. The pooler's own pool_size
+  // was raised to 48 (Supabase dashboard -> Project Settings -> Database ->
+  // Connection pooling), so 20 leaves plenty of headroom both above this
+  // app's peak and below that cap, while not claiming so much of it that
+  // real chat traffic (which shares this same pool) has nothing left.
+  max: 20,
   idle_timeout: 20,
   connect_timeout: 10,
   // Belt-and-suspenders for the same problem, but server-side: we found

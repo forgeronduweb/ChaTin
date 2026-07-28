@@ -1055,9 +1055,23 @@ export const DASHBOARD_HTML = `<!doctype html>
         if (btn.dataset.view === 'users' || btn.dataset.view === 'feedback') {
           markNotificationRead(btn.dataset.view);
         }
-        if (btn.dataset.view === 'report') {
-          loadReport();
+        // Load each section's data on first visit, not all at once on page
+        // load - firing ~10 requests (some fanning out to several queries
+        // each) simultaneously overloads Supabase's pooler and leaves some
+        // of them hanging (see db/client.ts for the connection-limit story).
+        if (btn.dataset.view === 'home') loadStats();
+        if (btn.dataset.view === 'users') loadUsers();
+        if (btn.dataset.view === 'conversations') loadConversations();
+        if (btn.dataset.view === 'prompts') loadPrompts();
+        if (btn.dataset.view === 'updates') loadReleases();
+        if (btn.dataset.view === 'feedback') loadFeedback();
+        if (btn.dataset.view === 'communication') {
+          loadEmailTemplates();
+          loadEmailCampaigns();
+          loadCampaignRecipientOptions();
+          loadAnnouncements();
         }
+        if (btn.dataset.view === 'report') loadReport();
       });
     });
 
@@ -2104,17 +2118,10 @@ export const DASHBOARD_HTML = `<!doctype html>
     });
 
     // ---------- Init ----------
+    // Only the default "home" view's data loads eagerly - every other
+    // section loads lazily on first visit via the nav click handler above.
     loadStats();
     loadNotifications();
-    loadUsers();
-    loadConversations();
-    loadPrompts();
-    loadReleases();
-    loadFeedback();
-    loadEmailTemplates();
-    loadEmailCampaigns();
-    loadCampaignRecipientOptions();
-    loadAnnouncements();
   </script>
 </body>
 </html>`;
