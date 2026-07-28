@@ -109,8 +109,13 @@ export const emailTemplates = pgTable('email_templates', {
   body: text('body').notNull(),
   // Which of the hand-built HTML layouts in email.ts wraps this template's
   // text - 'announcement' (sober card), 'promo' (bold banner), 'newsletter'
-  // (dark masthead + footer). See EMAIL_DESIGNS in email.ts.
-  design: text('design', { enum: ['announcement', 'promo', 'newsletter'] }).notNull().default('announcement'),
+  // (dark masthead), 'welcome' (gradient masthead). See EMAIL_DESIGNS in
+  // email.ts.
+  design: text('design', { enum: ['announcement', 'promo', 'newsletter', 'welcome'] }).notNull().default('announcement'),
+  // Optional call-to-action button - both set or both null, enforced in the
+  // route layer (email.ts's renderCtaButton no-ops if either is missing).
+  ctaLabel: text('cta_label'),
+  ctaUrl: text('cta_url'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
@@ -122,7 +127,9 @@ export const emailCampaigns = pgTable('email_campaigns', {
   id: uuid('id').primaryKey().defaultRandom(),
   subject: text('subject').notNull(),
   body: text('body').notNull(),
-  design: text('design', { enum: ['announcement', 'promo', 'newsletter'] }).notNull().default('announcement'),
+  design: text('design', { enum: ['announcement', 'promo', 'newsletter', 'welcome'] }).notNull().default('announcement'),
+  ctaLabel: text('cta_label'),
+  ctaUrl: text('cta_url'),
   recipientCount: integer('recipient_count').notNull(),
   failureCount: integer('failure_count').notNull().default(0),
   createdAt: timestamp('created_at').notNull().defaultNow(),

@@ -13,7 +13,7 @@ import {
   sessions,
   users,
 } from './db/schema.js';
-import { type EmailDesign, renderEmailHtml, sendEmail } from './email.js';
+import { type EmailCta, type EmailDesign, renderEmailHtml, sendEmail } from './email.js';
 
 function startOfToday(): Date {
   const d = new Date();
@@ -419,7 +419,14 @@ export async function listEmailTemplates() {
   return db.select().from(emailTemplates).orderBy(desc(emailTemplates.updatedAt));
 }
 
-export type EmailTemplateInput = { name: string; subject: string; body: string; design: EmailDesign };
+export type EmailTemplateInput = {
+  name: string;
+  subject: string;
+  body: string;
+  design: EmailDesign;
+  ctaLabel?: string | null;
+  ctaUrl?: string | null;
+};
 
 export async function createEmailTemplate(input: EmailTemplateInput) {
   const [row] = await db.insert(emailTemplates).values(input).returning();
@@ -482,20 +489,29 @@ async function sendToRecipients(
   subject: string,
   body: string,
   recipients: { name: string; email: string }[],
+  cta?: EmailCta,
 ): Promise<SendCampaignResult> {
   let failureCount = 0;
 
   for (const [index, recipient] of recipients.entries()) {
     if (index > 0) await new Promise((resolve) => setTimeout(resolve, 500));
     try {
-      await sendEmail(recipient.email, subject, renderEmailHtml(design, subject, body, recipient.name));
+      await sendEmail(recipient.email, subject, renderEmailHtml(design, subject, body, recipient.name, cta));
     } catch (error) {
       failureCount += 1;
       console.error(`Failed to send campaign email to ${recipient.email}:`, error);
     }
   }
 
-  await db.insert(emailCampaigns).values({ subject, body, design, recipientCount: recipients.length, failureCount });
+  await db.insert(emailCampaigns).values({
+    subject,
+    body,
+    design,
+    ctaLabel: cta?.label ?? null,
+    ctaUrl: cta?.url ?? null,
+    recipientCount: recipients.length,
+    failureCount,
+  });
   return { recipientCount: recipients.length, failureCount };
 }
 
@@ -503,13 +519,14 @@ export async function sendEmailCampaign(
   design: EmailDesign,
   subject: string,
   body: string,
-  userId?: string,
+  userIds?: string[],
+  cta?: EmailCta,
 ): Promise<SendCampaignResult> {
-  if (userId) {
-    const [user] = await db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, userId));
-    return sendToRecipients(design, subject, body, user && user.email ? [user] : []);
+  if (userIds && userIds.length > 0) {
+    const rows = await db.select({ name: users.name, email: users.email }).from(users).where(inArray(users.id, userIds));
+    return sendToRecipients(design, subject, body, rows.filter((row) => row.email), cta);
   }
-  return sendToRecipients(design, subject, body, await listUsersInSegment('all'));
+  return sendToRecipients(design, subject, body, await listUsersInSegment('all'), cta);
 }
 
 // ---------- Announcements (Communication module) ----------

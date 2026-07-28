@@ -46,6 +46,15 @@ function parseEmailDesign(value: unknown): EmailDesign {
   return typeof value === 'string' && (EMAIL_DESIGNS as readonly string[]).includes(value) ? (value as EmailDesign) : 'announcement';
 }
 
+// Both fields or neither - a label with no URL (or vice versa) isn't a
+// usable button, so it's treated the same as no CTA at all.
+function parseCta(ctaLabel: unknown, ctaUrl: unknown): { label: string; url: string } | undefined {
+  if (typeof ctaLabel === 'string' && ctaLabel.trim() && typeof ctaUrl === 'string' && ctaUrl.trim()) {
+    return { label: ctaLabel.trim(), url: ctaUrl.trim() };
+  }
+  return undefined;
+}
+
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
 
 export const adminRouter = Router();
@@ -329,7 +338,7 @@ adminRouter.get(
 adminRouter.post(
   '/admin/api/email-templates',
   asyncHandler(async (req, res) => {
-    const { name, subject, body, design } = req.body ?? {};
+    const { name, subject, body, design, ctaLabel, ctaUrl } = req.body ?? {};
     if (typeof name !== 'string' || !name.trim()) {
       res.status(400).json({ error: 'name is required' });
       return;
@@ -342,7 +351,15 @@ adminRouter.post(
       res.status(400).json({ error: 'body is required' });
       return;
     }
-    const template = await createEmailTemplate({ name: name.trim(), subject: subject.trim(), body, design: parseEmailDesign(design) });
+    const cta = parseCta(ctaLabel, ctaUrl);
+    const template = await createEmailTemplate({
+      name: name.trim(),
+      subject: subject.trim(),
+      body,
+      design: parseEmailDesign(design),
+      ctaLabel: cta?.label ?? null,
+      ctaUrl: cta?.url ?? null,
+    });
     res.status(201).json(template);
   }),
 );
@@ -350,12 +367,17 @@ adminRouter.post(
 adminRouter.patch(
   '/admin/api/email-templates/:id',
   asyncHandler(async (req, res) => {
-    const { name, subject, body, design } = req.body ?? {};
+    const { name, subject, body, design, ctaLabel, ctaUrl } = req.body ?? {};
     const patch: Record<string, unknown> = {};
     if (typeof name === 'string') patch.name = name.trim();
     if (typeof subject === 'string') patch.subject = subject.trim();
     if (typeof body === 'string') patch.body = body;
     if (typeof design === 'string') patch.design = parseEmailDesign(design);
+    if ('ctaLabel' in (req.body ?? {}) || 'ctaUrl' in (req.body ?? {})) {
+      const cta = parseCta(ctaLabel, ctaUrl);
+      patch.ctaLabel = cta?.label ?? null;
+      patch.ctaUrl = cta?.url ?? null;
+    }
 
     const template = await updateEmailTemplate(req.params.id, patch);
     if (!template) {
@@ -390,7 +412,7 @@ adminRouter.get(
 adminRouter.post(
   '/admin/api/email-campaigns/send',
   asyncHandler(async (req, res) => {
-    const { subject, body, userId, design } = req.body ?? {};
+    const { subject, body, userIds, design, ctaLabel, ctaUrl } = req.body ?? {};
     if (typeof subject !== 'string' || !subject.trim()) {
       res.status(400).json({ error: 'subject is required' });
       return;
@@ -403,12 +425,8 @@ adminRouter.post(
       res.status(500).json({ error: 'RESEND_API_KEY is not set on the server' });
       return;
     }
-    const result = await sendEmailCampaign(
-      parseEmailDesign(design),
-      subject.trim(),
-      body,
-      typeof userId === 'string' && userId ? userId : undefined,
-    );
+    const parsedUserIds = Array.isArray(userIds) ? userIds.filter((id): id is string => typeof id === 'string') : undefined;
+    const result = await sendEmailCampaign(parseEmailDesign(design), subject.trim(), body, parsedUserIds, parseCta(ctaLabel, ctaUrl));
     res.json(result);
   }),
 );
@@ -418,12 +436,13 @@ adminRouter.post(
 adminRouter.post(
   '/admin/api/email-preview',
   asyncHandler(async (req, res) => {
-    const { subject, body, design } = req.body ?? {};
+    const { subject, body, design, ctaLabel, ctaUrl } = req.body ?? {};
     const html = renderEmailHtml(
       parseEmailDesign(design),
       typeof subject === 'string' ? subject : '',
       typeof body === 'string' ? body : '',
       'Alex',
+      parseCta(ctaLabel, ctaUrl),
     );
     res.type('html').send(html);
   }),
