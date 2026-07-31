@@ -19,6 +19,11 @@ const EXCEL_TYPES = new Set([
 
 export const SUPPORTED_ATTACHMENT_TYPES = new Set([...PDF_TYPES, ...DOCX_TYPES, ...EXCEL_TYPES]);
 
+// Sent straight to Gemini as inline image data (see gemini.ts) rather than
+// through extractFileText - there's no text to extract, the model looks at
+// the pixels directly.
+export const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']);
+
 function truncate(text: string): string {
   const trimmed = text.trim();
   if (trimmed.length <= MAX_CHARS) return trimmed;

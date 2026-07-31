@@ -10,9 +10,12 @@ export type ChatMessage = {
   reaction?: 'like' | 'dislike' | null;
 };
 
+export type ConversationMode = 'chat' | 'marketing';
+
 export type Conversation = {
   id: string;
   title: string;
+  mode: ConversationMode;
   messages: ChatMessage[];
   createdAt: number;
 };
@@ -31,8 +34,9 @@ export async function createConversation(
   title: string,
   initialMessages: ChatMessage[] = [],
   userId?: string,
+  mode: ConversationMode = 'chat',
 ): Promise<Conversation> {
-  const [conversation] = await db.insert(conversations).values({ title, userId }).returning();
+  const [conversation] = await db.insert(conversations).values({ title, userId, mode }).returning();
 
   let savedMessages: ChatMessage[] = [];
   if (initialMessages.length > 0) {
@@ -46,6 +50,7 @@ export async function createConversation(
   return {
     id: conversation.id,
     title: conversation.title,
+    mode: conversation.mode as ConversationMode,
     messages: savedMessages,
     createdAt: conversation.createdAt.getTime(),
   };
@@ -81,6 +86,7 @@ export async function getConversation(id: string): Promise<Conversation | undefi
   return {
     id: conversation.id,
     title: conversation.title,
+    mode: conversation.mode as ConversationMode,
     messages: rows.map(toChatMessage),
     createdAt: conversation.createdAt.getTime(),
   };

@@ -32,6 +32,11 @@ export const conversations = pgTable('conversations', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
+  // 'marketing' conversations get a different system prompt (see
+  // system-prompt.ts) and skip the weather/news/currency tool-calling that
+  // only makes sense for the general assistant - set once at creation and
+  // fixed for the conversation's whole lifetime, not re-derived per message.
+  mode: text('mode', { enum: ['chat', 'marketing'] }).notNull().default('chat'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
@@ -161,4 +166,37 @@ export const announcements = pgTable('announcements', {
   expiresAt: timestamp('expires_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+// A ChaTin user's own customer/audience list for the Marketing space's email
+// campaigns - distinct from `users` (people who signed up for ChaTin
+// itself). Every row belongs to exactly one owner and is only ever visible
+// to them.
+export const marketingContacts = pgTable('marketing_contacts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull().default(''),
+  email: text('email').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+// One row per campaign a user sends from the Marketing space - same shape
+// and purpose as the admin's own emailCampaigns log, just scoped per owner
+// instead of being a single shared admin log. Reuses the same design enum
+// and HTML rendering (see email.ts) as the admin Communication module.
+export const marketingCampaigns = pgTable('marketing_campaigns', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  subject: text('subject').notNull(),
+  body: text('body').notNull(),
+  design: text('design', { enum: ['announcement', 'promo', 'newsletter', 'welcome'] }).notNull().default('announcement'),
+  ctaLabel: text('cta_label'),
+  ctaUrl: text('cta_url'),
+  recipientCount: integer('recipient_count').notNull(),
+  failureCount: integer('failure_count').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 });

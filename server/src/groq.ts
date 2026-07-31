@@ -37,6 +37,22 @@ export async function generateReply(history: ChatMessage[], systemPrompt: string
   return response.choices[0]?.message.content ?? '';
 }
 
+export async function* generateReplyStream(history: ChatMessage[], systemPrompt: string): AsyncGenerator<string> {
+  const messages = [
+    { role: 'system' as const, content: systemPrompt },
+    ...history.map((message) => ({
+      role: (message.from === 'me' ? 'user' : 'assistant') as 'user' | 'assistant',
+      content: message.text,
+    })),
+  ];
+
+  const stream = await getClient().chat.completions.create({ model: 'llama-3.3-70b-versatile', messages, stream: true });
+  for await (const chunk of stream) {
+    const delta = chunk.choices[0]?.delta?.content;
+    if (delta) yield delta;
+  }
+}
+
 const MEMORY_EXTRACTION_PROMPT = `You extract durable facts worth remembering about a user across separate future conversations, from one chat exchange.
 
 Only extract things that will still be true/useful later: their name, job, city, ongoing projects, preferences, constraints, or similar lasting personal facts. Never extract one-off questions, small talk, or facts only relevant to this single exchange.

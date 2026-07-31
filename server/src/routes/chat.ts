@@ -1,8 +1,8 @@
 import { Router, type Response } from 'express';
 import multer from 'multer';
-import { generateReply } from '../ai.js';
+import { generateReplyStream } from '../ai.js';
 import { asyncHandler } from '../async-handler.js';
-import { extractFileText, SUPPORTED_ATTACHMENT_TYPES } from '../file-extraction.js';
+import { extractFileText, SUPPORTED_ATTACHMENT_TYPES, SUPPORTED_IMAGE_TYPES } from '../file-extraction.js';
 import { extractAndSaveMemories } from '../memory-store.js';
 import { aiUsageLimiter } from '../rate-limit.js';
 import { resolveUserId } from '../request-auth.js';
@@ -56,8 +56,9 @@ chatRouter.post(
   asyncHandler(async (req, res) => {
     const title = typeof req.body?.title === 'string' && req.body.title.trim() ? req.body.title.trim() : 'New chat';
     const initialMessages = Array.isArray(req.body?.messages) ? req.body.messages : [];
+    const mode = req.body?.mode === 'marketing' ? 'marketing' : 'chat';
     const userId = await resolveUserId(req);
-    const conversation = await createConversation(title, initialMessages, userId);
+    const conversation = await createConversation(title, initialMessages, userId, mode);
     res.status(201).json(conversation);
   }),
 );
@@ -97,13 +98,16 @@ chatRouter.post(
       res.status(400).json({ error: 'text is required' });
       return;
     }
-    if (file && !SUPPORTED_ATTACHMENT_TYPES.has(file.mimetype)) {
-      res.status(400).json({ error: 'Unsupported file type. Use PDF, .docx, .xlsx or .xls.' });
+    const isImage = file ? SUPPORTED_IMAGE_TYPES.has(file.mimetype) : false;
+    if (file && !isImage && !SUPPORTED_ATTACHMENT_TYPES.has(file.mimetype)) {
+      res.status(400).json({ error: 'Unsupported file type. Use PDF, .docx, .xlsx, .xls or an image.' });
       return;
     }
 
+    // Images go to Gemini as inline pixel data (see ai.ts/gemini.ts), not
+    // through text extraction - there's nothing to read out of a photo.
     let attachmentText: string | null = null;
-    if (file) {
+    if (file && !isImage) {
       try {
         attachmentText = await extractFileText(file.buffer, file.mimetype, file.originalname);
       } catch (error) {
@@ -130,19 +134,63 @@ chatRouter.post(
         ]
       : history;
 
-    try {
-      const replyText = await generateReply(historyForAI, userId);
-      const reply = await addMessage(conversation.id, { from: 'bot', text: replyText });
-      res.status(201).json({ reply, messages: [...history, reply] });
+    const image = isImage && file ? { mimeType: file.mimetype, data: file.buffer } : undefined;
 
-      if (userId) {
-        extractAndSaveMemories(userId, conversation.id, text, replyText).catch((error) => {
-          console.error('Memory extraction failed:', error);
-        });
+    // Newline-delimited JSON, not a single JSON body: each line is either a
+    // {"type":"chunk", text} text delta as the model generates it, or a
+    // final {"type":"done", reply, messages} once the full reply is
+    // persisted - the same shape the old non-streaming response used to
+    // return in one shot. NDJSON over a plain chunked response needs no
+    // client-side SSE parser, just a line-buffered reader (see api.ts).
+    res.setHeader('Content-Type', 'application/x-ndjson');
+    res.setHeader('Cache-Control', 'no-cache');
+    // Traefik doesn't buffer proxied responses by default, but this is a
+    // no-op safety net in case that ever changes or a different proxy is
+    // fronting this in some other environment.
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    // If the client aborts (e.g. the "stop generating" button, or the user
+    // just navigates away), keep reading provider chunks that are already
+    // in flight but stop calling res.write on a socket nobody's reading
+    // from anymore - that throws (ERR_STREAM_WRITE_AFTER_END/EPIPE) since
+    // the previous behaviour of writing straight through until the loop
+    // ended assumed the connection always stayed open.
+    let clientGone = false;
+    req.on('close', () => {
+      clientGone = true;
+    });
+
+    let fullText = '';
+    try {
+      for await (const delta of generateReplyStream(historyForAI, userId, image, conversation.mode)) {
+        fullText += delta;
+        if (!clientGone) res.write(`${JSON.stringify({ type: 'chunk', text: delta })}\n`);
       }
     } catch (error) {
       console.error('AI provider error:', error);
-      res.status(502).json({ error: 'Failed to generate a reply' });
+      if (!res.headersSent && fullText === '') {
+        res.status(502).json({ error: 'Failed to generate a reply' });
+        return;
+      }
+      if (!clientGone) {
+        res.write(`${JSON.stringify({ type: 'error', error: 'Failed to generate a reply' })}\n`);
+        res.end();
+      }
+      return;
+    }
+
+    // Persisted regardless of clientGone - the reply still belongs in the
+    // conversation's history even if nobody was watching it arrive live.
+    const reply = await addMessage(conversation.id, { from: 'bot', text: fullText });
+    if (!clientGone) {
+      res.write(`${JSON.stringify({ type: 'done', reply, messages: [...history, reply] })}\n`);
+      res.end();
+    }
+
+    if (userId) {
+      extractAndSaveMemories(userId, conversation.id, text, fullText).catch((error) => {
+        console.error('Memory extraction failed:', error);
+      });
     }
   }),
 );
