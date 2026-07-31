@@ -45,7 +45,7 @@ import {
   setMessageReaction,
   transcribeAudio,
 } from '@/lib/api';
-import { ensureChatSession, updateChatSession, useChatSession } from '@/lib/chat-session-store';
+import { ensureChatSession, getChatSession, updateChatSession, useChatSession } from '@/lib/chat-session-store';
 import { createLocalConversationId, getStoredConversation, saveStoredConversation } from '@/lib/conversations-store';
 import { locale, t } from '@/lib/i18n';
 
@@ -89,7 +89,12 @@ const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 // then scrolls internally past the max instead of growing further.
 const INPUT_MIN_HEIGHT = 48;
 const INPUT_MAX_HEIGHT = 220;
-const INPUT_ANIM_CONFIG = { duration: 240, easing: Easing.out(Easing.cubic) };
+// Shorter than a typical UI transition on purpose: animating a TextInput's
+// own height is inherently a bit rougher than animating a plain View (the
+// native text layout has to re-measure as it grows), so a slow ease-out
+// leaves that roughness visible for longer. A quick snap reads as
+// responsive; a slow one reads as the jerkiness this used to have at 240ms.
+const INPUT_ANIM_CONFIG = { duration: 140, easing: Easing.out(Easing.quad) };
 
 // A sent message longer than this collapses behind a "Show more" toggle.
 const MESSAGE_TEXT_MAX_LINES = 12;
@@ -256,7 +261,11 @@ function ChatInputBar({
           <View style={styles.attachmentChip}>
             <SymbolView
               tintColor={Brand.ink}
-              name={{ ios: 'doc.fill', android: 'description', web: 'description' }}
+              name={
+                attachedFile.mimeType?.startsWith('image/')
+                  ? { ios: 'photo.fill', android: 'image', web: 'image' }
+                  : { ios: 'doc.fill', android: 'description', web: 'description' }
+              }
               size={14}
             />
             <Text style={styles.attachmentChipText} numberOfLines={1}>
@@ -376,6 +385,68 @@ function MessageActionPopover({
   );
 }
 
+// Picking a mode here always starts a brand new conversation in that mode -
+// same as tapping the pencil "new chat" icon, just with a mode attached.
+// Mode is fixed per-conversation once created (see ai.ts/store.ts), so
+// there's no in-place "switch" once messages exist; this is the same
+// mental model as starting a new chat, not editing the current one.
+function ModeSelectorPopover({
+  visible,
+  currentMode,
+  onSelect,
+  onOpenEmailCampaigns,
+  onDismiss,
+}: {
+  visible: boolean;
+  currentMode: 'chat' | 'marketing';
+  onSelect: (mode: 'chat' | 'marketing') => void;
+  onOpenEmailCampaigns: () => void;
+  onDismiss: () => void;
+}) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
+  if (!visible) return null;
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onDismiss}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onDismiss}>
+        <Animated.View entering={FadeInUp.duration(140)} style={[styles.popover, styles.modeSelectorPopover]}>
+          <Pressable
+            onPress={() => onSelect('chat')}
+            style={({ pressed }) => [styles.popoverRow, pressed && styles.pressed]}>
+            <SymbolView tintColor={Brand.ink} name={{ ios: 'bubble.left', android: 'chat_bubble', web: 'chat_bubble' }} size={15} />
+            <Text style={styles.popoverRowText}>{t('normalModeLabel')}</Text>
+            {currentMode === 'chat' && (
+              <SymbolView tintColor={Brand.ink} name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={14} />
+            )}
+          </Pressable>
+          <View style={styles.popoverDivider} />
+          <Pressable
+            onPress={() => onSelect('marketing')}
+            style={({ pressed }) => [styles.popoverRow, pressed && styles.pressed]}>
+            <SymbolView tintColor={Brand.ink} name={{ ios: 'megaphone.fill', android: 'campaign', web: 'campaign' }} size={15} />
+            <Text style={styles.popoverRowText}>{t('marketingModeLabel')}</Text>
+            {currentMode === 'marketing' && (
+              <SymbolView tintColor={Brand.ink} name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={14} />
+            )}
+          </Pressable>
+          {currentMode === 'marketing' && (
+            <>
+              <View style={styles.popoverDivider} />
+              <Pressable
+                onPress={onOpenEmailCampaigns}
+                style={({ pressed }) => [styles.popoverRow, pressed && styles.pressed]}>
+                <SymbolView tintColor={Brand.ink} name={{ ios: 'envelope.fill', android: 'mail', web: 'mail' }} size={15} />
+                <Text style={styles.popoverRowText}>{t('marketingEmailTitle')}</Text>
+              </Pressable>
+            </>
+          )}
+        </Animated.View>
+      </Pressable>
+    </Modal>
+  );
+}
+
 const MessageBubble = memo(function MessageBubble({
   message,
   isEditing,
@@ -390,6 +461,7 @@ const MessageBubble = memo(function MessageBubble({
   onReact,
   isSpeaking,
   onToggleSpeak,
+  isStreaming,
 }: {
   message: ChatMessage;
   isEditing: boolean;
@@ -404,6 +476,7 @@ const MessageBubble = memo(function MessageBubble({
   onReact: (reaction: Reaction) => void;
   isSpeaking: boolean;
   onToggleSpeak: () => void;
+  isStreaming: boolean;
 }) {
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -413,6 +486,10 @@ const MessageBubble = memo(function MessageBubble({
   const [isTextTruncated, setIsTextTruncated] = useState(false);
 
   if (message.from === 'bot') {
+    // Nothing has streamed in yet for this reply - the footer "typing"
+    // bubble covers this gap instead, so an empty bot row here would just
+    // duplicate it.
+    if (isStreaming && message.text === '') return null;
     return (
       <Animated.View entering={FadeInUp.duration(260).springify().damping(18)} style={styles.botMessageBlock}>
         <View style={styles.botLabelRow}>
@@ -430,13 +507,15 @@ const MessageBubble = memo(function MessageBubble({
           delayLongPress={350}>
           <MessageContent text={message.text} />
         </Pressable>
-        <MessageActionBar
-          text={message.text}
-          reaction={reaction}
-          onReact={onReact}
-          isSpeaking={isSpeaking}
-          onToggleSpeak={onToggleSpeak}
-        />
+        {!isStreaming && (
+          <MessageActionBar
+            text={message.text}
+            reaction={reaction}
+            onReact={onReact}
+            isSpeaking={isSpeaking}
+            onToggleSpeak={onToggleSpeak}
+          />
+        )}
       </Animated.View>
     );
   }
@@ -522,7 +601,8 @@ export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { id, title } = useLocalSearchParams<{ id?: string; title?: string }>();
+  const { id, title, mode } = useLocalSearchParams<{ id?: string; title?: string; mode?: string }>();
+  const conversationMode = mode === 'marketing' ? 'marketing' : 'chat';
   const [stored] = useState(() => (id ? getStoredConversation(id) : undefined));
   const [draft, setDraft] = useState('');
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -534,6 +614,7 @@ export default function ChatScreen() {
   });
   const { messages, sending } = session;
   const [popoverFor, setPopoverFor] = useState<{ id: string; y: number; canEdit: boolean } | null>(null);
+  const [showModeSelector, setShowModeSelector] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
   const [showCopiedToast, setShowCopiedToast] = useState(false);
@@ -557,8 +638,18 @@ export default function ChatScreen() {
   const editingMessageIdRef = useRef<string | null>(null);
   // The centered logo stays put (as a static badge, then a spinner while the
   // first prompt is running) until the first bot reply exists - once that
-  // lands, the FlatList takes over and the logo never comes back.
-  const showIntroLogo = !messages.some((message) => message.from === 'bot');
+  // lands, the FlatList takes over and the logo never comes back. Checked
+  // against non-empty text, not just presence: a streaming reply's bot
+  // message exists (as an empty placeholder) from the moment it starts
+  // sending, so counting it as soon as it's added would hand off to the
+  // FlatList before there's anything in it to show yet.
+  const showIntroLogo = !messages.some((message) => message.from === 'bot' && message.text !== '');
+  // The footer "typing" bubble is only for the gap before any text has
+  // streamed in yet - once the first chunk lands, the real message bubble
+  // is already growing with it, so keeping this around too would show the
+  // same "ChaTin is replying" bot row twice.
+  const lastMessage = messages[messages.length - 1];
+  const awaitingFirstChunk = sending && lastMessage?.from === 'bot' && lastMessage.text === '';
   const heroX = useSharedValue(0);
   const heroY = useSharedValue(0);
   const heroScale = useSharedValue(1);
@@ -641,7 +732,7 @@ export default function ChatScreen() {
     // navigated away mid-reply and came back) already has this - reusing it
     // avoids spawning a duplicate server-side conversation on remount.
     if (session.serverConversationId) return;
-    createConversation(stored?.title ?? title, stored?.messages)
+    createConversation(stored?.title ?? title, stored?.messages, conversationMode)
       .then((conversation) => {
         if (cancelled) return;
         updateChatSession(localId.current, { serverConversationId: conversation.id });
@@ -658,6 +749,25 @@ export default function ChatScreen() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Appends the empty bot bubble that the streamed reply fills in place, and
+  // returns an onChunk callback that grows its text as deltas arrive -
+  // shared between a fresh send and a regenerate-after-edit, since both
+  // stream a reply the same way.
+  function startStreamingReply(baseMessages: ChatMessage[]): { messages: ChatMessage[]; onChunk: (delta: string) => void } {
+    const streamingId = `${Date.now()}-streaming`;
+    const messages = [...baseMessages, { id: streamingId, from: 'bot' as const, text: '' }];
+    let streamedText = '';
+    const onChunk = (delta: string) => {
+      streamedText += delta;
+      const session = getChatSession(localId.current);
+      if (!session) return;
+      updateChatSession(localId.current, {
+        messages: session.messages.map((message) => (message.id === streamingId ? { ...message, text: streamedText } : message)),
+      });
+    };
+    return { messages, onChunk };
+  }
 
   async function submit(text: string, file?: PickedFile | null) {
     const current = ensureChatSession(localId.current, { messages: [], title: null });
@@ -681,9 +791,10 @@ export default function ChatScreen() {
       { id: `${Date.now()}`, from: 'me' as const, text, attachmentName: file?.name ?? null },
     ];
     const controller = new AbortController();
+    const { messages: messagesWithPlaceholder, onChunk } = startStreamingReply(messagesWithUser);
     updateChatSession(localId.current, {
       title: resolvedTitle,
-      messages: messagesWithUser,
+      messages: messagesWithPlaceholder,
       sending: true,
       abortController: controller,
     });
@@ -698,8 +809,8 @@ export default function ChatScreen() {
     });
     try {
       const result = file
-        ? await sendMessageWithFile(current.serverConversationId, text, file, controller.signal)
-        : await sendMessage(current.serverConversationId, text, controller.signal);
+        ? await sendMessageWithFile(current.serverConversationId, text, file, onChunk, controller.signal)
+        : await sendMessage(current.serverConversationId, text, onChunk, controller.signal);
       updateChatSession(localId.current, { messages: result.messages, sending: false, abortController: null });
       saveStoredConversation({
         id: localId.current,
@@ -745,11 +856,16 @@ export default function ChatScreen() {
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'application/vnd.ms-excel',
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+        'image/heic',
+        'image/heif',
       ],
     });
     if (result.canceled || !result.assets?.[0]) return;
     const asset = result.assets[0];
-    setAttachedFile({ uri: asset.uri, name: asset.name });
+    setAttachedFile({ uri: asset.uri, name: asset.name, mimeType: asset.mimeType });
   }
 
   function handleRemoveAttachment() {
@@ -835,7 +951,7 @@ export default function ChatScreen() {
   }
 
   const renderItem = useCallback(
-    ({ item }: { item: ChatMessage }) => (
+    ({ item, index }: { item: ChatMessage; index: number }) => (
       <MessageBubble
         message={item}
         isEditing={editingMessageId === item.id}
@@ -850,10 +966,11 @@ export default function ChatScreen() {
         onReact={(reaction) => handleReact(item.id, reaction)}
         isSpeaking={speakingMessageId === item.id}
         onToggleSpeak={() => handleToggleSpeak(item.id, item.text)}
+        isStreaming={sending && index === messages.length - 1 && item.from === 'bot'}
       />
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [editingMessageId, editDraft, lastUserMessageId, sending, speakingMessageId],
+    [editingMessageId, editDraft, lastUserMessageId, sending, speakingMessageId, messages.length],
   );
 
   function handleCopyMessage() {
@@ -892,9 +1009,10 @@ export default function ChatScreen() {
     // reply lands in that same spot rather than a new pair being appended.
     const messagesWithEdit = [...current.messages.slice(0, index), { ...current.messages[index], text }];
     const controller = new AbortController();
+    const { messages: messagesWithPlaceholder, onChunk } = startStreamingReply(messagesWithEdit);
     updateChatSession(localId.current, {
       title: resolvedTitle,
-      messages: messagesWithEdit,
+      messages: messagesWithPlaceholder,
       sending: true,
       abortController: controller,
     });
@@ -905,7 +1023,7 @@ export default function ChatScreen() {
       updatedAt: Date.now(),
     });
     try {
-      const result = await sendMessage(current.serverConversationId, text, controller.signal);
+      const result = await sendMessage(current.serverConversationId, text, onChunk, controller.signal);
       const finalMessages = [...messagesWithEdit, result.reply];
       updateChatSession(localId.current, { messages: finalMessages, sending: false, abortController: null });
       saveStoredConversation({
@@ -981,7 +1099,7 @@ export default function ChatScreen() {
               scrollToEndRobust();
             }}
             ListFooterComponent={
-              sending && !showIntroLogo ? (
+              awaitingFirstChunk && !showIntroLogo ? (
                 <Animated.View entering={FadeInUp.duration(220)} style={styles.botMessageBlock}>
                   <View style={styles.botLabelRow}>
                     <View style={styles.botLabelLogoBadge}>
@@ -1093,6 +1211,15 @@ export default function ChatScreen() {
             </Pressable>
 
             <Pressable
+              onPress={() => setShowModeSelector(true)}
+              style={({ pressed }) => [styles.modeBadge, pressed && styles.pressed]}>
+              <Text style={styles.modeBadgeText}>
+                {conversationMode === 'marketing' ? t('marketingModeLabel') : t('normalModeLabel')}
+              </Text>
+              <SymbolView tintColor={colors.text} name={{ ios: 'chevron.down', android: 'expand_more', web: 'expand_more' }} size={12} />
+            </Pressable>
+
+            <Pressable
               onPress={() => router.replace('/chat')}
               style={({ pressed }) => pressed && styles.pressed}>
               <View style={styles.iconButton}>
@@ -1113,6 +1240,21 @@ export default function ChatScreen() {
         onModify={handleStartEdit}
         onCopy={handleCopyMessage}
         onDismiss={() => setPopoverFor(null)}
+      />
+
+      <ModeSelectorPopover
+        visible={showModeSelector}
+        currentMode={conversationMode}
+        onSelect={(selected) => {
+          setShowModeSelector(false);
+          if (selected === conversationMode) return;
+          router.replace(selected === 'marketing' ? { pathname: '/chat', params: { mode: 'marketing' } } : '/chat');
+        }}
+        onOpenEmailCampaigns={() => {
+          setShowModeSelector(false);
+          router.push('/marketing-email');
+        }}
+        onDismiss={() => setShowModeSelector(false)}
       />
 
       <AppDialog
@@ -1153,6 +1295,33 @@ function createStyles(colors: ThemeColors) {
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  modeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.one,
+    // Fixed, not content-sized - "Marketing" and "Normal" are different
+    // lengths, and letting the pill auto-size to whichever is showing made
+    // it visibly change width (and the header icons shift) every time the
+    // mode switched. Wide enough to fit "Marketing" (the longer label)
+    // comfortably with both paddingHorizontal and the chevron icon.
+    width: 116,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 999,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one + 2,
+  },
+  modeBadgeText: {
+    fontFamily: Fonts.semiBold,
+    fontSize: 13,
+    color: colors.text,
+  },
+  modeSelectorPopover: {
+    alignSelf: 'center',
+    top: 56,
   },
   chatCard: {
     flex: 1,

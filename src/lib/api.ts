@@ -23,9 +23,12 @@ export type ChatMessage = {
   reaction?: 'like' | 'dislike' | null;
 };
 
+export type ConversationMode = 'chat' | 'marketing';
+
 export type Conversation = {
   id: string;
   title: string;
+  mode: ConversationMode;
   messages: ChatMessage[];
 };
 
@@ -56,10 +59,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export function createConversation(title?: string, messages?: ChatMessage[]): Promise<Conversation> {
+export function createConversation(
+  title?: string,
+  messages?: ChatMessage[],
+  mode?: ConversationMode,
+): Promise<Conversation> {
   return request<Conversation>('/api/conversations', {
     method: 'POST',
-    body: JSON.stringify({ title, messages }),
+    body: JSON.stringify({ title, messages, mode }),
   });
 }
 
@@ -121,16 +128,67 @@ export function submitFeedback(message: string, appVersion?: string): Promise<vo
   });
 }
 
-export function sendMessage(
+type StreamEvent =
+  | { type: 'chunk'; text: string }
+  | { type: 'done'; reply: ChatMessage; messages: ChatMessage[] }
+  | { type: 'error'; error: string };
+
+// The reply endpoint streams newline-delimited JSON (one small object per
+// line) instead of a single JSON body, so the bot's reply can render as it's
+// generated instead of appearing all at once once the whole thing is done.
+// onChunk fires once per text delta; the returned promise resolves with the
+// same {reply, messages} shape the endpoint used to return in one shot,
+// once the final "done" line arrives.
+async function readNdjsonReply(
+  response: Response,
+  path: string,
+  onChunk: (text: string) => void,
+): Promise<{ reply: ChatMessage; messages: ChatMessage[] }> {
+  if (!response.body) throw new Error(`Request to ${path} returned no streamable body`);
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let newlineIndex = buffer.indexOf('\n');
+    while (newlineIndex !== -1) {
+      const line = buffer.slice(0, newlineIndex);
+      buffer = buffer.slice(newlineIndex + 1);
+      newlineIndex = buffer.indexOf('\n');
+      if (!line.trim()) continue;
+      const event = JSON.parse(line) as StreamEvent;
+      if (event.type === 'chunk') onChunk(event.text);
+      else if (event.type === 'done') return { reply: event.reply, messages: event.messages };
+      else if (event.type === 'error') throw new Error(event.error);
+    }
+  }
+  throw new Error(`Stream from ${path} ended without a final result`);
+}
+
+export async function sendMessage(
   conversationId: string,
   text: string,
+  onChunk: (text: string) => void,
   signal?: AbortSignal,
 ): Promise<{ reply: ChatMessage; messages: ChatMessage[] }> {
-  return request(`/api/conversations/${conversationId}/messages`, {
+  const session = await getSession();
+  const path = `/api/conversations/${conversationId}/messages`;
+  const response = await expoFetch(`${BASE_URL}${path}`, {
     method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(session ? { Authorization: `Bearer ${session.token}` } : {}),
+    },
     body: JSON.stringify({ text }),
     signal,
   });
+  if (!response.ok) {
+    throw new Error(`Request to ${path} failed with status ${response.status}`);
+  }
+  return readNdjsonReply(response, path, onChunk);
 }
 
 export function setMessageReaction(
@@ -147,6 +205,7 @@ export function setMessageReaction(
 export type PickedFile = {
   uri: string;
   name: string;
+  mimeType?: string;
 };
 
 export type Memory = {
@@ -186,6 +245,7 @@ export async function sendMessageWithFile(
   conversationId: string,
   text: string,
   file: PickedFile,
+  onChunk: (text: string) => void,
   signal?: AbortSignal,
 ): Promise<{ reply: ChatMessage; messages: ChatMessage[] }> {
   const session = await getSession();
@@ -193,14 +253,78 @@ export async function sendMessageWithFile(
   formData.append('text', text);
   formData.append('file', new File(file.uri), file.name);
 
-  const response = await expoFetch(`${BASE_URL}/api/conversations/${conversationId}/messages`, {
+  const path = `/api/conversations/${conversationId}/messages`;
+  const response = await expoFetch(`${BASE_URL}${path}`, {
     method: 'POST',
     headers: session ? { Authorization: `Bearer ${session.token}` } : undefined,
     body: formData,
     signal,
   });
   if (!response.ok) {
-    throw new Error(`Request to /api/conversations/${conversationId}/messages failed with status ${response.status}`);
+    throw new Error(`Request to ${path} failed with status ${response.status}`);
   }
-  return response.json() as Promise<{ reply: ChatMessage; messages: ChatMessage[] }>;
+  return readNdjsonReply(response, path, onChunk);
+}
+
+// ---------- Marketing space: contacts & email campaigns ----------
+// A ChaTin user's own customer list and campaign log, distinct from the
+// admin dashboard's Communication module - same design/CTA/HTML rendering
+// reused server-side (email.ts), scoped to whichever user is signed in.
+
+export type EmailDesign = 'announcement' | 'promo' | 'newsletter' | 'welcome';
+
+export type MarketingContact = { id: string; name: string; email: string; createdAt: number };
+
+export type MarketingCampaign = {
+  id: string;
+  subject: string;
+  body: string;
+  design: EmailDesign;
+  ctaLabel: string | null;
+  ctaUrl: string | null;
+  recipientCount: number;
+  failureCount: number;
+  createdAt: number;
+};
+
+export function getMarketingContacts(): Promise<MarketingContact[]> {
+  return request<MarketingContact[]>('/api/marketing/contacts');
+}
+
+export function addMarketingContact(name: string, email: string): Promise<MarketingContact> {
+  return request<MarketingContact>('/api/marketing/contacts', {
+    method: 'POST',
+    body: JSON.stringify({ name, email }),
+  });
+}
+
+export function importMarketingContacts(
+  contacts: { name: string; email: string }[],
+): Promise<{ added: number; skipped: number }> {
+  return request('/api/marketing/contacts/import', {
+    method: 'POST',
+    body: JSON.stringify({ contacts }),
+  });
+}
+
+export function deleteMarketingContact(id: string): Promise<void> {
+  return request(`/api/marketing/contacts/${id}`, { method: 'DELETE' });
+}
+
+export function getMarketingCampaigns(): Promise<MarketingCampaign[]> {
+  return request<MarketingCampaign[]>('/api/marketing/campaigns');
+}
+
+export function sendMarketingCampaign(input: {
+  subject: string;
+  body: string;
+  design: EmailDesign;
+  contactIds?: string[];
+  ctaLabel?: string;
+  ctaUrl?: string;
+}): Promise<{ recipientCount: number; failureCount: number }> {
+  return request('/api/marketing/campaigns/send', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 }
